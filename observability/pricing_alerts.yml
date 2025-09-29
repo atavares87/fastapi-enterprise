@@ -1,0 +1,112 @@
+groups:
+  - name: pricing_alerts
+    rules:
+      # High error rate in pricing calculations
+      - alert: HighPricingErrorRate
+        expr: rate(pricing_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: pricing
+        annotations:
+          summary: "High error rate in pricing calculations"
+          description: "Pricing calculation error rate is {{ $value }} errors per second"
+
+      # Excessive pricing limit violations
+      - alert: ExcessivePricingLimitViolations
+        expr: rate(pricing_limit_violations_total[5m]) > 5
+        for: 1m
+        labels:
+          severity: warning
+          service: pricing
+        annotations:
+          summary: "Excessive pricing limit violations"
+          description: "Pricing limit violations rate is {{ $value }} violations per second"
+
+      # Slow pricing calculations
+      - alert: SlowPricingCalculations
+        expr: histogram_quantile(0.95, rate(pricing_calculation_duration_seconds_bucket[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+          service: pricing
+        annotations:
+          summary: "Slow pricing calculations"
+          description: "95th percentile of pricing calculation duration is {{ $value }} seconds"
+
+      # Very slow pricing calculations (critical)
+      - alert: VerySlowPricingCalculations
+        expr: histogram_quantile(0.95, rate(pricing_calculation_duration_seconds_bucket[5m])) > 10
+        for: 1m
+        labels:
+          severity: critical
+          service: pricing
+        annotations:
+          summary: "Very slow pricing calculations"
+          description: "95th percentile of pricing calculation duration is {{ $value }} seconds"
+
+      # No pricing calculations (service down)
+      - alert: NoPricingCalculations
+        expr: rate(pricing_calculations_total[5m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: pricing
+        annotations:
+          summary: "No pricing calculations"
+          description: "No pricing calculations have been performed in the last 5 minutes"
+
+      # High number of active pricing calculations (potential bottleneck)
+      - alert: HighActivePricingCalculations
+        expr: active_pricing_calculations > 100
+        for: 2m
+        labels:
+          severity: warning
+          service: pricing
+        annotations:
+          summary: "High number of active pricing calculations"
+          description: "{{ $value }} pricing calculations are currently active"
+
+      # Application down
+      - alert: FastAPIDown
+        expr: up{job="fastapi-enterprise"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: fastapi
+        annotations:
+          summary: "FastAPI Enterprise application is down"
+          description: "FastAPI Enterprise application has been down for more than 1 minute"
+
+      # High HTTP error rate
+      - alert: HighHTTPErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: fastapi
+        annotations:
+          summary: "High HTTP error rate"
+          description: "HTTP error rate is {{ $value | humanizePercentage }}"
+
+      # High response time
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+          service: fastapi
+        annotations:
+          summary: "High HTTP response time"
+          description: "95th percentile response time is {{ $value }} seconds"
+
+      # Database connection issues
+      - alert: MongoDBConnectionIssues
+        expr: rate(mongodb_connections_failed_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: mongodb
+        annotations:
+          summary: "MongoDB connection failures"
+          description: "MongoDB connection failure rate is {{ $value }} failures per second"

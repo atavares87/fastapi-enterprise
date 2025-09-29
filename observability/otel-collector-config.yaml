@@ -1,0 +1,72 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'fastapi-enterprise'
+          static_configs:
+            - targets: ['host.docker.internal:8000']  # Your FastAPI app
+          scrape_interval: 15s
+          metrics_path: /metrics
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+  memory_limiter:
+    limit_mib: 512
+    check_interval: 1s
+
+  # Add resource attributes
+  resource:
+    attributes:
+      - key: service.name
+        value: fastapi-enterprise
+        action: upsert
+      - key: service.version
+        value: 1.0.0
+        action: upsert
+
+exporters:
+  # OTLP to Jaeger for traces
+  otlp/jaeger:
+    endpoint: jaeger:14250
+    tls:
+      insecure: true
+
+  # Prometheus for metrics
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    const_labels:
+      service: fastapi-enterprise
+
+  # Logging for debugging
+  logging:
+    loglevel: info
+
+service:
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: 0.0.0.0:8888
+
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp/jaeger, logging]
+
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [memory_limiter, resource, batch]
+      exporters: [prometheus, logging]
+
+  extensions: []
