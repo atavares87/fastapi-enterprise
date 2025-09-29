@@ -2,7 +2,7 @@
 # This Makefile provides common development tasks using uv as the package manager
 
 # Variables
-PYTHON = python3.11
+PYTHON = python3.13
 UV = uv
 PROJECT_NAME = fastapi-enterprise
 SRC_DIR = app
@@ -156,24 +156,6 @@ test-contract-provider: ## Run provider verification tests
 test-contract-full: start-dev-background test-contract-consumer test-contract-provider stop-dev-background ## Run full contract testing workflow
 	@echo "$(GREEN)Full contract testing workflow completed!$(NC)"
 
-.PHONY: start-dev-background
-start-dev-background: ## Start development server in background for testing
-	@echo "$(BLUE)Starting development server in background...$(NC)"
-	@$(UV) run uvicorn $(SRC_DIR).main:app --host 0.0.0.0 --port 8000 > /dev/null 2>&1 & echo $$! > .dev-server.pid
-	@sleep 3
-	@echo "$(GREEN)Development server started (PID: $$(cat .dev-server.pid))$(NC)"
-
-.PHONY: stop-dev-background
-stop-dev-background: ## Stop background development server
-	@if [ -f .dev-server.pid ]; then \
-		echo "$(BLUE)Stopping development server...$(NC)"; \
-		kill $$(cat .dev-server.pid) 2>/dev/null || true; \
-		rm -f .dev-server.pid; \
-		echo "$(GREEN)Development server stopped$(NC)"; \
-	else \
-		echo "$(YELLOW)No development server PID file found$(NC)"; \
-	fi
-
 # Database management
 .PHONY: db-upgrade
 db-upgrade: ## Run database migrations
@@ -258,44 +240,12 @@ docker-down: ## 🛑 Stop all services
 	@docker-compose down
 	@echo "$(GREEN)✅ All services stopped$(NC)"
 
-.PHONY: docker-logs
-docker-logs: ## 📋 View logs from all services
-	@echo "$(BLUE)📋 Viewing logs from all services (Ctrl+C to exit)...$(NC)"
-	@docker-compose logs -f
-
-.PHONY: docker-status
-docker-status: ## 📊 Show status of all services
-	@echo "$(BLUE)📊 Service Status:$(NC)"
-	@docker-compose ps
-	@echo ""
-	@echo "$(BLUE)🔍 Health Checks:$(NC)"
-	@printf "  Grafana:    "; curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -q 200 && echo "$(GREEN)✅ Running$(NC)" || echo "$(RED)❌ Down$(NC)"
-	@printf "  Jaeger:     "; curl -s -o /dev/null -w "%{http_code}" http://localhost:16686 | grep -q 200 && echo "$(GREEN)✅ Running$(NC)" || echo "$(RED)❌ Down$(NC)"
-	@printf "  Prometheus: "; curl -s -o /dev/null -w "%{http_code}" http://localhost:9090 | grep -q 200 && echo "$(GREEN)✅ Running$(NC)" || echo "$(RED)❌ Down$(NC)"
-	@printf "  MongoDB:    "; docker exec mongodb mongosh --quiet --eval "db.adminCommand('ping')" >/dev/null 2>&1 && echo "$(GREEN)✅ Running$(NC)" || echo "$(RED)❌ Down$(NC)"
-	@printf "  Redis:      "; docker exec redis redis-cli ping >/dev/null 2>&1 && echo "$(GREEN)✅ Running$(NC)" || echo "$(RED)❌ Down$(NC)"
-
-.PHONY: docker-restart
-docker-restart: ## 🔄 Restart all services
-	@echo "$(YELLOW)🔄 Restarting all services...$(NC)"
-	@make docker-down
-	@sleep 2
-	@make docker-up
-
 # Database operations
 .PHONY: db-init
 db-init: ## 🗄️ Initialize MongoDB collections and indexes
 	@echo "$(BLUE)🗄️ Initializing MongoDB...$(NC)"
 	@docker exec -i mongodb mongosh pricing --eval "load('/docker-entrypoint-initdb.d/mongo-init.js')"
 	@echo "$(GREEN)✅ MongoDB initialized$(NC)"
-
-.PHONY: db-backup
-db-backup: ## 💾 Backup MongoDB data
-	@echo "$(BLUE)💾 Backing up MongoDB...$(NC)"
-	@mkdir -p ./backups
-	@docker exec mongodb mongodump --db pricing --out /tmp/backup
-	@docker cp mongodb:/tmp/backup ./backups/mongodb-$(shell date +%Y%m%d-%H%M%S)
-	@echo "$(GREEN)✅ Backup completed$(NC)"
 
 .PHONY: db-pricing-reset
 db-pricing-reset: ## 🔄 Reset MongoDB pricing data (WARNING: Deletes all data)
@@ -304,12 +254,6 @@ db-pricing-reset: ## 🔄 Reset MongoDB pricing data (WARNING: Deletes all data)
 	@docker exec mongodb mongosh pricing --eval "db.dropDatabase()"
 	@make db-init
 	@echo "$(GREEN)✅ MongoDB reset completed$(NC)"
-
-# Monitoring & Observability
-.PHONY: metrics
-metrics: ## 📊 View current application metrics
-	@echo "$(BLUE)📊 Current Application Metrics:$(NC)"
-	@curl -s http://localhost:8000/metrics | grep -E "(pricing_|http_)" | head -20 || echo "$(YELLOW)⚠️  Application not running or metrics not available$(NC)"
 
 .PHONY: grafana-import
 grafana-import: ## 📈 Import Grafana dashboards
@@ -333,57 +277,8 @@ test-pricing: ## 🧪 Run pricing-specific tests
 	@$(UV) run pytest tests/test_pricing_limits.py -v
 	@echo "$(GREEN)✅ Pricing tests completed$(NC)"
 
-.PHONY: logs-pricing
-logs-pricing: ## 📋 View pricing-specific logs
-	@echo "$(BLUE)📋 Viewing pricing logs...$(NC)"
-	@docker-compose logs -f | grep -i pricing
-
-.PHONY: logs-errors
-logs-errors: ## 📋 View error logs only
-	@echo "$(RED)📋 Viewing error logs...$(NC)"
-	@docker-compose logs | grep -i error
-
-# Development shortcuts
-.PHONY: quick-start
-quick-start: docker-up install ## 🚀 Complete quick start (docker-up + install)
-
 .PHONY: full-setup
 full-setup: docker-up install db-init grafana-import ## 🚀 Complete setup with dashboard import
-
-.PHONY: doctor
-doctor: ## 🏥 Run system health diagnostics
-	@echo "$(BLUE)🏥 Running system diagnostics...$(NC)"
-	@echo ""
-	@echo "$(BLUE)🐳 Docker Status:$(NC)"
-	@docker --version || echo "$(RED)❌ Docker not installed$(NC)"
-	@docker-compose --version || echo "$(RED)❌ Docker Compose not installed$(NC)"
-	@echo ""
-	@echo "$(BLUE)🐍 Python Environment:$(NC)"
-	@python --version || echo "$(RED)❌ Python not available$(NC)"
-	@$(UV) --version || echo "$(RED)❌ uv not available$(NC)"
-	@echo ""
-	@echo "$(BLUE)🔌 Port Availability:$(NC)"
-	@for port in 3000 8000 9090 16686 27017; do \
-		if lsof -i :$$port >/dev/null 2>&1; then \
-			echo "  Port $$port: $(RED)❌ In use$(NC)"; \
-		else \
-			echo "  Port $$port: $(GREEN)✅ Available$(NC)"; \
-		fi; \
-	done
-	@echo ""
-	@make docker-status
-
-.PHONY: urls
-urls: ## 🔗 Show all service URLs
-	@echo "$(BLUE)🔗 Service URLs:$(NC)"
-	@echo "  📊 Grafana:           http://localhost:3000 (admin/admin)"
-	@echo "  🔍 Jaeger:            http://localhost:16686"
-	@echo "  📈 Prometheus:        http://localhost:9090"
-	@echo "  🚨 AlertManager:      http://localhost:9093"
-	@echo "  🌐 FastAPI App:       http://localhost:8000"
-	@echo "  📖 API Docs:          http://localhost:8000/docs"
-	@echo "  📊 App Metrics:       http://localhost:8000/metrics"
-	@echo "  🗄️  MongoDB:           mongodb://admin:password@localhost:27017/pricing"
 
 # Cleanup commands
 .PHONY: clean

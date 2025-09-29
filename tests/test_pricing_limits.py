@@ -14,10 +14,10 @@ import pytest
 
 from app.modules.cost.domain import (
     CostBreakdown,
-    Dimensions,
+    ManufacturingProcess,
     Material,
+    PartDimensions,
     PartSpecification,
-    Process,
 )
 from app.modules.pricing.domain import PriceBreakdown, PricingRequest, PricingTier
 from app.modules.pricing.exceptions import (
@@ -38,12 +38,11 @@ from app.modules.pricing.service import PricingService
 @pytest.fixture
 def sample_cost_breakdown():
     """Create a sample cost breakdown for testing."""
-    return CostBreakdown(
+    return CostBreakdown.create(
         material_cost=Decimal("100.00"),
         labor_cost=Decimal("150.00"),
         setup_cost=Decimal("50.00"),
-        overhead_cost=Decimal("30.00"),
-        tooling_cost=Decimal("20.00"),
+        complexity_adjustment=Decimal("20.00"),
     )
 
 
@@ -439,10 +438,9 @@ class TestPricingServiceIntegration:
         # Create a part specification
         part_spec = PartSpecification(
             material=Material.ALUMINUM,
-            process=Process.CNC,
-            dimensions=Dimensions(length_mm=100, width_mm=50, height_mm=25),
+            process=ManufacturingProcess.CNC,
+            dimensions=PartDimensions(length_mm=100, width_mm=50, height_mm=25),
             geometric_complexity_score=3.0,
-            quantity=100,  # Large quantity for volume discounts
         )
 
         # Calculate pricing
@@ -471,10 +469,9 @@ class TestPricingServiceIntegration:
 
         part_spec = PartSpecification(
             material=Material.ALUMINUM,
-            process=Process.CNC,
-            dimensions=Dimensions(length_mm=50, width_mm=25, height_mm=10),
+            process=ManufacturingProcess.CNC,
+            dimensions=PartDimensions(length_mm=50, width_mm=25, height_mm=10),
             geometric_complexity_score=2.0,
-            quantity=1000,  # Very large quantity for maximum discounts
         )
 
         result = service.calculate_part_pricing_with_limits_info(
@@ -509,10 +506,9 @@ class TestPricingServiceIntegration:
 
         part_spec = PartSpecification(
             material=Material.PLASTIC_ABS,
-            process=Process.THREE_D_PRINTING,
-            dimensions=Dimensions(length_mm=30, width_mm=30, height_mm=30),
+            process=ManufacturingProcess.THREE_D_PRINTING,
+            dimensions=PartDimensions(length_mm=30, width_mm=30, height_mm=30),
             geometric_complexity_score=1.5,
-            quantity=50,
         )
 
         pricing_result = service.calculate_part_pricing(
@@ -531,10 +527,9 @@ class TestPricingServiceIntegration:
 
         part_spec = PartSpecification(
             material=Material.ALUMINUM,
-            process=Process.CNC,
-            dimensions=Dimensions(length_mm=100, width_mm=50, height_mm=25),
+            process=ManufacturingProcess.CNC,
+            dimensions=PartDimensions(length_mm=100, width_mm=50, height_mm=25),
             geometric_complexity_score=3.0,
-            quantity=100,
         )
 
         # Should calculate normally without any limit adjustments

@@ -6,7 +6,7 @@ This guide provides detailed information for developers working on the FastAPI E
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.13+
 - [uv](https://github.com/astral-sh/uv) package manager
 - Docker and Docker Compose
 - Git

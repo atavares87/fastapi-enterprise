@@ -8,7 +8,7 @@ This guide will help you set up your development environment and get the FastAPI
 
 ### Required Software
 
-- **Python 3.11+**: The application requires Python 3.11 or higher
+- **Python 3.13+**: The application requires Python 3.13 or higher
 - **Docker & Docker Compose**: For running services (PostgreSQL, MongoDB, Redis)
 - **Git**: For version control
 - **uv**: Fast Python package installer and dependency manager

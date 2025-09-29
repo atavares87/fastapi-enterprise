@@ -8,8 +8,13 @@ for calculating final prices including shipping, margins, and discounts.
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
+from typing import TYPE_CHECKING, Optional
 
 from app.modules.cost.domain import CostBreakdown
+
+# Forward declaration - importing at the end to avoid circular imports
+if TYPE_CHECKING:
+    from app.modules.pricing.limits import PricingLimitEnforcer
 
 
 class PricingTier(str, Enum):
@@ -181,7 +186,7 @@ class PricingEngine:
         self,
         tier_configurations: dict[PricingTier, PricingConfiguration],
         tier_shipping_costs: dict[PricingTier, ShippingCost],
-        pricing_limits_enforcer: "PricingLimitEnforcer" = None,
+        pricing_limits_enforcer: Optional["PricingLimitEnforcer"] = None,
     ):
         """
         Initialize pricing engine with configuration.

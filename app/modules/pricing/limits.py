@@ -138,6 +138,7 @@ class PricingLimitEnforcer:
         """
         violations = []
         adjusted_breakdown = price_breakdown
+        violation: LimitViolation | None  # Type hint for violation variable used below
 
         # Check for negative or zero price (critical error)
         if price_breakdown.final_price <= 0:
@@ -216,12 +217,13 @@ class PricingLimitEnforcer:
             raise NegativePriceError(price_breakdown.final_price, tier.value)
 
         # Check minimum price per unit
+        actual_price_per_unit = price_breakdown.final_price / request.quantity
         if (
             self.limits.minimum_price_per_unit is not None
-            and price_breakdown.price_per_unit < self.limits.minimum_price_per_unit
+            and actual_price_per_unit < self.limits.minimum_price_per_unit
         ):
             raise BelowMinimumPriceError(
-                price_breakdown.price_per_unit,
+                actual_price_per_unit,
                 self.limits.minimum_price_per_unit,
                 tier.value,
                 "per-unit",
@@ -393,25 +395,57 @@ class PricingLimitEnforcer:
                 limit_value=self.limits.minimum_price_per_unit,
             )
 
-        # Check minimum total price
+        # Check minimum total price (using the potentially adjusted breakdown)
         if (
             self.limits.minimum_total_price is not None
-            and breakdown.final_price < self.limits.minimum_total_price
+            and adjusted_breakdown.final_price < self.limits.minimum_total_price
         ):
-            adjustment = self.limits.minimum_total_price - breakdown.final_price
-            new_final_discount = max(
-                Decimal("0"), breakdown.final_discount - adjustment
+            original_price_before_total_adjustment = adjusted_breakdown.final_price
+            adjustment_needed = (
+                self.limits.minimum_total_price - adjusted_breakdown.final_price
             )
-            new_final_price = breakdown.subtotal - new_final_discount
+
+            # Try to achieve minimum by reducing discounts first
+            available_discount_reduction = (
+                adjusted_breakdown.final_discount + adjusted_breakdown.volume_discount
+            )
+            discount_reduction = min(available_discount_reduction, adjustment_needed)
+            remaining_adjustment = adjustment_needed - discount_reduction
+
+            # Reduce discounts (final discount first, then volume discount)
+            final_discount_reduction = min(
+                adjusted_breakdown.final_discount, discount_reduction
+            )
+            volume_discount_reduction = discount_reduction - final_discount_reduction
+
+            new_final_discount = (
+                adjusted_breakdown.final_discount - final_discount_reduction
+            )
+            new_volume_discount = (
+                adjusted_breakdown.volume_discount - volume_discount_reduction
+            )
+
+            # If still need more adjustment, increase the margin
+            new_margin = adjusted_breakdown.margin + remaining_adjustment
+
+            # Recalculate subtotal and final price
+            new_subtotal = (
+                adjusted_breakdown.base_cost
+                + new_margin
+                + adjusted_breakdown.shipping_cost
+                + adjusted_breakdown.complexity_surcharge
+                - new_volume_discount
+            )
+            new_final_price = new_subtotal - new_final_discount
             new_price_per_unit = new_final_price / request.quantity
 
             adjusted_breakdown = PriceBreakdown(
-                base_cost=breakdown.base_cost,
-                margin=breakdown.margin,
-                shipping_cost=breakdown.shipping_cost,
-                volume_discount=breakdown.volume_discount,
-                complexity_surcharge=breakdown.complexity_surcharge,
-                subtotal=breakdown.subtotal,
+                base_cost=adjusted_breakdown.base_cost,
+                margin=new_margin,
+                shipping_cost=adjusted_breakdown.shipping_cost,
+                volume_discount=new_volume_discount,
+                complexity_surcharge=adjusted_breakdown.complexity_surcharge,
+                subtotal=new_subtotal,
                 final_discount=new_final_discount,
                 final_price=new_final_price,
                 price_per_unit=new_price_per_unit,
@@ -420,7 +454,7 @@ class PricingLimitEnforcer:
             violation = LimitViolation(
                 violation_type=LimitViolationType.MINIMUM_PRICE,
                 message=f"Total price below minimum ${self.limits.minimum_total_price}",
-                original_value=breakdown.final_price,
+                original_value=original_price_before_total_adjustment,
                 adjusted_value=new_final_price,
                 limit_value=self.limits.minimum_total_price,
             )
@@ -636,13 +670,18 @@ class PricingLimitEnforcer:
             )
 
             if breakdown.final_price < minimum_price:
-                price_increase = minimum_price - breakdown.final_price
+                price_increase_needed = minimum_price - breakdown.final_price
 
-                # Reduce discounts to meet minimum
-                total_discounts = breakdown.volume_discount + breakdown.final_discount
-                discount_reduction = min(total_discounts, price_increase)
+                # Try to achieve minimum by reducing discounts first
+                available_discount_reduction = (
+                    breakdown.final_discount + breakdown.volume_discount
+                )
+                discount_reduction = min(
+                    available_discount_reduction, price_increase_needed
+                )
+                remaining_increase = price_increase_needed - discount_reduction
 
-                # Reduce final discount first, then volume discount
+                # Reduce discounts (final discount first, then volume discount)
                 final_discount_reduction = min(
                     breakdown.final_discount, discount_reduction
                 )
@@ -655,9 +694,13 @@ class PricingLimitEnforcer:
                     breakdown.volume_discount - volume_discount_reduction
                 )
 
+                # If still need more adjustment, increase the margin
+                new_margin = breakdown.margin + remaining_increase
+
+                # Recalculate subtotal and final price
                 new_subtotal = (
                     breakdown.base_cost
-                    + breakdown.margin
+                    + new_margin
                     + breakdown.shipping_cost
                     + breakdown.complexity_surcharge
                     - new_volume_discount
@@ -667,7 +710,7 @@ class PricingLimitEnforcer:
 
                 adjusted_breakdown = PriceBreakdown(
                     base_cost=breakdown.base_cost,
-                    margin=breakdown.margin,
+                    margin=new_margin,
                     shipping_cost=breakdown.shipping_cost,
                     volume_discount=new_volume_discount,
                     complexity_surcharge=breakdown.complexity_surcharge,

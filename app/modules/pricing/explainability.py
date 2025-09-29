@@ -102,17 +102,9 @@ class PricingExplanation:
                     "volume_cm3": float(self.part_specification.dimensions.volume_cm3),
                 },
                 "geometric_complexity_score": self.part_specification.geometric_complexity_score,
-                "quantity": self.part_specification.quantity,
-                "surface_finish": (
-                    self.part_specification.surface_finish.value
-                    if self.part_specification.surface_finish
-                    else None
-                ),
-                "tolerance_class": (
-                    self.part_specification.tolerance_class.value
-                    if self.part_specification.tolerance_class
-                    else None
-                ),
+                "quantity": self.pricing_request_params.get("quantity", 1),
+                "surface_finish": None,  # Not part of PartSpecification
+                "tolerance_class": None,  # Not part of PartSpecification
             },
             "pricing_request_params": self.pricing_request_params,
             "cost_calculation_steps": [
@@ -122,8 +114,10 @@ class PricingExplanation:
                 "material_cost": float(self.cost_breakdown.material_cost),
                 "labor_cost": float(self.cost_breakdown.labor_cost),
                 "setup_cost": float(self.cost_breakdown.setup_cost),
+                "complexity_adjustment": float(
+                    self.cost_breakdown.complexity_adjustment
+                ),
                 "overhead_cost": float(self.cost_breakdown.overhead_cost),
-                "tooling_cost": float(self.cost_breakdown.tooling_cost),
                 "total_cost": float(self.cost_breakdown.total_cost),
             },
             "tier_explanations": {
@@ -216,7 +210,7 @@ class PricingExplainer:
                 input_values={
                     "material": part_spec.material.value,
                     "volume_cm3": float(volume_cm3),
-                    "quantity": part_spec.quantity,
+                    "quantity": 1,  # Cost calculation is per-unit
                 },
                 calculation_formula="volume_cm3 * material_cost_per_cm3 * quantity",
                 output_value=cost_breakdown.material_cost,
@@ -233,7 +227,7 @@ class PricingExplainer:
                 input_values={
                     "process": part_spec.process.value,
                     "complexity_score": part_spec.geometric_complexity_score,
-                    "quantity": part_spec.quantity,
+                    "quantity": 1,  # Cost calculation is per-unit
                 },
                 calculation_formula="base_labor_time * complexity_multiplier * hourly_rate * quantity",
                 output_value=cost_breakdown.labor_cost,
@@ -249,11 +243,11 @@ class PricingExplainer:
                 description="One-time setup costs for the manufacturing process",
                 input_values={
                     "process": part_spec.process.value,
-                    "quantity": part_spec.quantity,
+                    "quantity": 1,  # Cost calculation is per-unit
                 },
                 calculation_formula="process_setup_cost / quantity",
                 output_value=cost_breakdown.setup_cost,
-                reasoning=f"Setup costs amortized across {part_spec.quantity} units",
+                reasoning="Setup costs per unit for the manufacturing process",
             )
         )
 
@@ -286,11 +280,11 @@ class PricingExplainer:
                 input_values={
                     "process": part_spec.process.value,
                     "complexity_score": part_spec.geometric_complexity_score,
-                    "quantity": part_spec.quantity,
+                    "quantity": 1,  # Cost calculation is per-unit
                 },
-                calculation_formula="tooling_cost_per_unit * complexity_factor * quantity",
-                output_value=cost_breakdown.tooling_cost,
-                reasoning=f"Tooling requirements for {part_spec.process.value} with complexity adjustments",
+                calculation_formula="setup_cost_per_unit * complexity_factor * quantity",
+                output_value=cost_breakdown.setup_cost,
+                reasoning=f"Setup requirements for {part_spec.process.value} with complexity adjustments",
             )
         )
 
@@ -303,7 +297,7 @@ class PricingExplainer:
         price_breakdown: PriceBreakdown,
         tier_config: Any,
         shipping_cost_calc: Any,
-        limit_violations: list[LimitViolation] = None,
+        limit_violations: list[LimitViolation] | None = None,
     ) -> TierExplanation:
         """Generate detailed explanation for a specific pricing tier."""
 
@@ -547,7 +541,7 @@ class PricingExplainer:
         tier_pricing: TierPricing,
         tier_configs: dict[PricingTier, Any],
         shipping_configs: dict[PricingTier, Any],
-        limit_violations: dict[str, list[LimitViolation]] = None,
+        limit_violations: dict[str, list[LimitViolation]] | None = None,
         calculation_duration_ms: int = 0,
     ) -> PricingExplanation:
         """Create a complete pricing explanation."""

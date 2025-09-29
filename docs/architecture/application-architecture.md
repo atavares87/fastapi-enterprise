@@ -308,10 +308,10 @@ class DatabaseSettings(BaseSettings):
 
 ```dockerfile
 # Multi-stage build for production
-FROM python:3.11-slim as builder
+FROM python:3.13-slim as builder
 # Build dependencies
 
-FROM python:3.11-slim as runtime
+FROM python:3.13-slim as runtime
 # Runtime dependencies and application
 ```
 

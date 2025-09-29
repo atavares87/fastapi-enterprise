@@ -6,7 +6,9 @@ for monitoring pricing calculations and application performance.
 """
 
 import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import structlog
 from opentelemetry import metrics, trace
@@ -20,7 +22,7 @@ from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.propagate import set_global_textmap
 from opentelemetry.propagators.b3 import B3MultiFormat
 from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.metrics.export import MetricReader, PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
@@ -59,7 +61,7 @@ class TelemetryConfig:
 class PricingMetrics:
     """Custom metrics for pricing operations."""
 
-    def __init__(self, meter) -> None:
+    def __init__(self, meter: metrics.Meter) -> None:
         self.meter = meter
 
         # Counters
@@ -158,9 +160,9 @@ class TelemetryManager:
         # Set global tracer provider
         trace.set_tracer_provider(self.tracer_provider)
 
-    def _setup_metrics(self):
+    def _setup_metrics(self) -> None:
         """Set up metrics collection."""
-        readers = []
+        readers: list[MetricReader] = []
 
         # OTLP metrics exporter
         if self.config.otlp_endpoint:
@@ -193,11 +195,11 @@ class TelemetryManager:
         meter = metrics.get_meter("pricing", self.config.service_version)
         self.pricing_metrics = PricingMetrics(meter)
 
-    def _setup_propagation(self):
+    def _setup_propagation(self) -> None:
         """Set up trace context propagation."""
         set_global_textmap(B3MultiFormat())
 
-    def _instrument_libraries(self):
+    def _instrument_libraries(self) -> None:
         """Instrument common libraries."""
         # MongoDB instrumentation
         PymongoInstrumentor().instrument()
@@ -211,7 +213,7 @@ class TelemetryManager:
         except Exception as exc:
             logger.warning("Redis instrumentation disabled", error=str(exc))
 
-    def instrument_fastapi(self, app):
+    def instrument_fastapi(self, app: Any) -> None:
         """Instrument FastAPI application."""
         FastAPIInstrumentor.instrument_app(
             app,
@@ -240,7 +242,7 @@ class TelemetryManager:
         """Get a meter for the given name."""
         return metrics.get_meter(name, self.config.service_version)
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """Shutdown telemetry providers."""
         if self.tracer_provider:
             self.tracer_provider.shutdown()
@@ -251,14 +253,16 @@ class TelemetryManager:
 class PricingTelemetry:
     """Specialized telemetry for pricing operations."""
 
-    def __init__(self, telemetry_manager: TelemetryManager):
+    def __init__(self, telemetry_manager: TelemetryManager) -> None:
         self.tracer = telemetry_manager.get_tracer("pricing")
+        if telemetry_manager.pricing_metrics is None:
+            raise ValueError("Pricing metrics not initialized")
         self.metrics = telemetry_manager.pricing_metrics
 
     @asynccontextmanager
     async def trace_pricing_calculation(
         self, material: str, process: str, quantity: int, customer_tier: str
-    ):
+    ) -> AsyncGenerator[trace.Span, None]:
         """Context manager for tracing pricing calculations."""
 
         with self.tracer.start_as_current_span("pricing_calculation") as span:
@@ -331,7 +335,7 @@ class PricingTelemetry:
         tier: str,
         limits_applied: bool = False,
         limit_violations: int = 0,
-    ):
+    ) -> None:
         """Record pricing calculation results."""
 
         attributes = {"tier": tier}
@@ -350,7 +354,7 @@ class PricingTelemetry:
                 limit_violations, {**attributes, "limits_applied": str(limits_applied)}
             )
 
-    def trace_cost_calculation(self, material: str, process: str):
+    def trace_cost_calculation(self, material: str, process: str) -> trace.Span:
         """Create a span for cost calculation."""
         span = self.tracer.start_span("cost_calculation")
         span.set_attributes(
@@ -361,7 +365,7 @@ class PricingTelemetry:
         )
         return span
 
-    def trace_limit_enforcement(self, tier: str, violations: int):
+    def trace_limit_enforcement(self, tier: str, violations: int) -> trace.Span:
         """Create a span for limit enforcement."""
         span = self.tracer.start_span("limit_enforcement")
         span.set_attributes(
@@ -372,7 +376,7 @@ class PricingTelemetry:
         )
         return span
 
-    def trace_explanation_generation(self, calculation_id: str):
+    def trace_explanation_generation(self, calculation_id: str) -> trace.Span:
         """Create a span for explanation generation."""
         span = self.tracer.start_span("explanation_generation")
         span.set_attributes(
@@ -382,7 +386,7 @@ class PricingTelemetry:
         )
         return span
 
-    def trace_database_operation(self, operation: str, collection: str):
+    def trace_database_operation(self, operation: str, collection: str) -> trace.Span:
         """Create a span for database operations."""
         span = self.tracer.start_span(f"db_{operation}")
         span.set_attributes(
@@ -423,7 +427,7 @@ def get_pricing_telemetry() -> PricingTelemetry | None:
     return None
 
 
-def shutdown_telemetry():
+def shutdown_telemetry() -> None:
     """Shutdown global telemetry."""
     global _telemetry_manager
     if _telemetry_manager:

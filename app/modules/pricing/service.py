@@ -9,6 +9,7 @@ import time
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from prometheus_client import Counter, Gauge, Histogram
 
@@ -62,9 +63,9 @@ class PricingService:
 
     def __init__(
         self,
-        pricing_limits: PricingLimits = None,
-        repository: PricingRepository = None,
-        explainer: PricingExplainer = None,
+        pricing_limits: PricingLimits | None = None,
+        repository: PricingRepository | None = None,
+        explainer: PricingExplainer | None = None,
     ) -> None:
         """Initialize service with cost service and pricing engine."""
         self.cost_service = CostCalculationService()
@@ -227,7 +228,7 @@ class PricingService:
         quantity: int = 1,
         customer_tier: str = "standard",
         shipping_distance_zone: int = 1,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Calculate pricing with detailed limit violation information.
 
@@ -400,11 +401,11 @@ class PricingService:
     @classmethod
     def with_custom_limits(
         cls,
-        min_price_per_unit: Decimal = None,
-        min_total_price: Decimal = None,
-        min_margin_pct: float = None,
-        max_discount_pct: float = None,
-        min_price_over_cost: float = None,
+        min_price_per_unit: Decimal | None = None,
+        min_total_price: Decimal | None = None,
+        min_margin_pct: float | None = None,
+        max_discount_pct: float | None = None,
+        min_price_over_cost: float | None = None,
     ) -> "PricingService":
         """Create pricing service with custom limits."""
         limits = PricingLimitConfigurationFactory.custom_limits(
@@ -490,8 +491,8 @@ class PricingService:
 
     async def _perform_pricing_calculation(
         self,
-        calculation_id,
-        start_time,
+        calculation_id: UUID,
+        start_time: float,
         part_spec: PartSpecification,
         part_weight_kg: float,
         quantity: int,
@@ -500,7 +501,7 @@ class PricingService:
         save_to_db: bool,
         user_id: str | None,
         ip_address: str | None,
-        span=None,
+        span: Any = None,
     ) -> dict[str, Any]:
         """Internal method to perform the actual pricing calculation."""
         try:
@@ -522,8 +523,8 @@ class PricingService:
             tier_pricing = self.pricing_engine.calculate_tier_pricing(pricing_request)
 
             # Calculate duration
-            calculation_duration_ms = int((time() - start_time) * 1000)
-            calculation_duration_seconds = time() - start_time
+            calculation_duration_ms = int((time.time() - start_time) * 1000)
+            calculation_duration_seconds = time.time() - start_time
 
             # Get limit violations if enforcer is present
             limit_violations = {}

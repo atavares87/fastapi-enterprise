@@ -19,7 +19,7 @@ from app.modules.pricing.explainability import PricingExplanation
 class PricingRepository:
     """Repository for pricing data persistence and retrieval."""
 
-    def __init__(self, database: AsyncIOMotorDatabase):
+    def __init__(self, database: AsyncIOMotorDatabase[dict[str, Any]]):
         """
         Initialize repository with MongoDB database.
 
@@ -27,11 +27,15 @@ class PricingRepository:
             database: MongoDB database instance
         """
         self.database = database
-        self.pricing_explanations: AsyncIOMotorCollection = (
+        self.pricing_explanations: AsyncIOMotorCollection[dict[str, Any]] = (
             database.pricing_explanations
         )
-        self.pricing_audit_log: AsyncIOMotorCollection = database.pricing_audit_log
-        self.pricing_metrics: AsyncIOMotorCollection = database.pricing_metrics
+        self.pricing_audit_log: AsyncIOMotorCollection[dict[str, Any]] = (
+            database.pricing_audit_log
+        )
+        self.pricing_metrics: AsyncIOMotorCollection[dict[str, Any]] = (
+            database.pricing_metrics
+        )
 
     async def initialize_indexes(self) -> None:
         """Create database indexes for optimal query performance."""
@@ -142,7 +146,7 @@ class PricingRepository:
         Returns:
             List of matching pricing explanation documents
         """
-        filter_query = {}
+        filter_query: dict[str, Any] = {}
 
         if material:
             filter_query["part_specification.material"] = material
@@ -181,7 +185,7 @@ class PricingRepository:
         Returns:
             Dictionary containing analytics data
         """
-        pipeline = [
+        pipeline: list[dict[str, Any]] = [
             {
                 "$match": {
                     "timestamp": {
@@ -219,7 +223,7 @@ class PricingRepository:
                 "avg_quantities": 0,
             }
 
-        analytics = result[0]
+        analytics: dict[str, Any] = result[0]
 
         # Count occurrences for breakdowns
         from collections import Counter
@@ -280,7 +284,7 @@ class PricingRepository:
         Returns:
             List of audit events
         """
-        filter_query = {}
+        filter_query: dict[str, Any] = {}
 
         if calculation_id:
             filter_query["calculation_id"] = str(calculation_id)
@@ -347,7 +351,7 @@ class PricingRepository:
         cursor = self.pricing_metrics.find(filter_query).sort("date", ASCENDING)
         return await cursor.to_list(length=None)
 
-    async def cleanup_old_data(self, retention_days: int = 365) -> dict[str, int]:
+    async def cleanup_old_data(self, retention_days: int = 365) -> dict[str, int | str]:
         """
         Clean up old data beyond retention period.
 
@@ -397,7 +401,7 @@ class PricingRepository:
         Returns:
             List of popular configurations with counts
         """
-        pipeline = [
+        pipeline: list[dict[str, Any]] = [
             {
                 "$match": {
                     "timestamp": {

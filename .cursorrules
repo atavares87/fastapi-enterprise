@@ -61,7 +61,7 @@ The FCIS pattern works seamlessly with hexagonal architecture:
 
 ### Python Standards
 
-- Use Python 3.11+ features and type hints
+- Use Python 3.13+ features and type hints
 - Follow PEP 8 with Black formatting (line length: 88)
 - Use type annotations for all functions, classes, and variables
 - Prefer explicit over implicit

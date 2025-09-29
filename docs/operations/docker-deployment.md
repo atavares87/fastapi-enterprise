@@ -59,7 +59,7 @@ graph TB
 **Dockerfile**:
 ```dockerfile
 # Multi-stage build for production
-FROM python:3.11-slim as base
+FROM python:3.13-slim as base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \

@@ -348,7 +348,7 @@ def include_routers(app: FastAPI) -> None:
     from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
     @app.get("/metrics", tags=["Health"])
-    async def get_metrics():
+    async def get_metrics() -> Response:
         """Prometheus metrics endpoint."""
         return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
