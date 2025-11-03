@@ -96,7 +96,7 @@ class DatabaseManager:
         self.settings = get_settings()
 
     async def init_postgres(self) -> None:
-        """Initialize PostgreSQL connection pool."""
+        """Initialize PostgreSQL connection pool with configurable limits."""
         global _postgres_engine, _postgres_session_maker
 
         try:
@@ -104,10 +104,11 @@ class DatabaseManager:
             _postgres_engine = create_async_engine(
                 str(self.settings.DATABASE_URL),
                 echo=self.settings.DEBUG,
-                pool_size=10,
-                max_overflow=20,
-                pool_pre_ping=True,
-                pool_recycle=3600,  # Recycle connections after 1 hour
+                pool_size=self.settings.POSTGRES_POOL_SIZE,
+                max_overflow=self.settings.POSTGRES_MAX_OVERFLOW,
+                pool_timeout=self.settings.POSTGRES_POOL_TIMEOUT,
+                pool_pre_ping=True,  # Validate connections before using
+                pool_recycle=self.settings.POSTGRES_POOL_RECYCLE,
             )
 
             # Create session maker

@@ -24,21 +24,23 @@ receivers:
   - name: 'critical-alerts'
     email_configs:
       - to: 'ops-team@fastapi-enterprise.com'
-        subject: 'CRITICAL: {{ .GroupLabels.alertname }}'
-        body: |
-          Alert: {{ .GroupLabels.alertname }}
-          Summary: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
-          Description: {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+        headers:
+          Subject: 'CRITICAL: {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>Critical Alert: {{ .GroupLabels.alertname }}</h2>
+          <p><strong>Summary:</strong> {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}</p>
+          <p><strong>Description:</strong> {{ range .Alerts }}{{ .Annotations.description }}{{ end }}</p>
 
   - name: 'pricing-alerts'
     email_configs:
       - to: 'pricing-team@fastapi-enterprise.com'
-        subject: 'Pricing Alert: {{ .GroupLabels.alertname }}'
-        body: |
-          Alert: {{ .GroupLabels.alertname }}
-          Service: {{ .GroupLabels.service }}
-          Summary: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
-          Description: {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+        headers:
+          Subject: 'Pricing Alert: {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>Pricing Alert: {{ .GroupLabels.alertname }}</h2>
+          <p><strong>Service:</strong> {{ .GroupLabels.service }}</p>
+          <p><strong>Summary:</strong> {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}</p>
+          <p><strong>Description:</strong> {{ range .Alerts }}{{ .Annotations.description }}{{ end }}</p>
 
 inhibit_rules:
   - source_match:

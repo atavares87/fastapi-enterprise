@@ -8,7 +8,7 @@ This guide will help you set up your development environment and get the FastAPI
 
 ### Required Software
 
-- **Python 3.13+**: The application requires Python 3.13 or higher
+- **Python 3.11+**: The application requires Python 3.11 or higher
 - **Docker & Docker Compose**: For running services (PostgreSQL, MongoDB, Redis)
 - **Git**: For version control
 - **uv**: Fast Python package installer and dependency manager
@@ -243,18 +243,18 @@ fastapi-enterprise/
 
 ### Key Directories for Development
 
-- **`app/domains/`**: Add new business logic and domain models here
-- **`app/api/v1/`**: Add new API endpoints here
-- **`app/infrastructure/`**: Add new database repositories and external integrations
+- **`app/core/domain/`**: Add new business logic and domain models here
+- **`app/adapter/inbound/web/v1/`**: Add new API endpoints here
+- **`app/adapter/outbound/`**: Add new database repositories and external integrations
 - **`tests/`**: Add tests that mirror your application structure
 
 ## Common Development Tasks
 
 ### Adding a New API Endpoint
 
-1. **Define the domain model** in `app/domains/[domain]/models.py`
-2. **Create the service logic** in `app/domains/[domain]/services.py`
-3. **Add the API endpoint** in `app/api/v1/[endpoint].py`
+1. **Define the domain model** in `app/core/domain/[domain]/models.py`
+2. **Create the service logic** in `app/core/domain/[domain]/services.py`
+3. **Add the API endpoint** in `app/adapter/inbound/web/v1/[endpoint].py`
 4. **Write tests** in `tests/unit/`, `tests/api/`, etc.
 5. **Update documentation** if needed
 
@@ -396,12 +396,12 @@ docker-compose exec redis redis-cli info memory
 
 ```bash
 # Check environment variables
-uv run python -c "from app.core.config.settings import settings; print(settings.dict())"
+uv run python -c "from app.core.config import settings; print(settings.dict())"
 
 # Test database connections
 uv run python -c "
-from app.infrastructure.database.postgres.connection import PostgreSQLConnection
-from app.core.config.settings import settings
+from app.adapter.outbound.persistence.connection import PostgreSQLConnection
+from app.core.config import settings
 import asyncio
 
 async def test():

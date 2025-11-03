@@ -50,12 +50,12 @@ graph TB
 
 ### Application Setup
 
-**Celery Application** (`app/infrastructure/tasks/celery_app.py`):
+**Celery Application** (`app/adapter/outbound/tasks/celery_app.py`):
 
 ```python
 from celery import Celery
 from kombu import Queue
-from app.core.config.settings import settings
+from app.core.config import settings
 
 # Create Celery application
 celery_app = Celery("fastapi_enterprise")
@@ -75,10 +75,10 @@ celery_app.conf.update(
 
     # Task routing
     task_routes={
-        "app.infrastructure.tasks.pricing_tasks.*": {"queue": "pricing"},
-        "app.infrastructure.tasks.notification_tasks.*": {"queue": "notifications"},
-        "app.infrastructure.tasks.data_tasks.*": {"queue": "data_processing"},
-        "app.infrastructure.tasks.maintenance_tasks.*": {"queue": "maintenance"},
+        "app.core.tasks.pricing_tasks.*": {"queue": "pricing"},
+        "app.core.tasks.notification_tasks.*": {"queue": "notifications"},
+        "app.core.tasks.data_tasks.*": {"queue": "data_processing"},
+        "app.core.tasks.maintenance_tasks.*": {"queue": "maintenance"},
     },
 
     # Queue definitions
@@ -112,19 +112,19 @@ celery_app.conf.update(
     # Beat scheduler settings (for periodic tasks)
     beat_schedule={
         "expire-old-quotes": {
-            "task": "app.infrastructure.tasks.maintenance_tasks.expire_old_quotes",
+            "task": "app.core.tasks.expire_old_quotes",
             "schedule": 3600.0,  # Every hour
         },
         "cleanup-expired-reservations": {
-            "task": "app.infrastructure.tasks.maintenance_tasks.cleanup_expired_reservations",
+            "task": "app.core.tasks.cleanup_expired_sessions",
             "schedule": 1800.0,  # Every 30 minutes
         },
         "generate-daily-reports": {
-            "task": "app.infrastructure.tasks.data_tasks.generate_daily_reports",
+            "task": "app.core.tasks.generate_report",
             "schedule": crontab(hour=2, minute=0),  # Daily at 2 AM
         },
         "backup-pricing-data": {
-            "task": "app.infrastructure.tasks.data_tasks.backup_pricing_data",
+            "task": "app.core.tasks.periodic_health_check",
             "schedule": crontab(hour=3, minute=0, day_of_week=0),  # Weekly Sunday 3 AM
         },
     },
@@ -132,10 +132,7 @@ celery_app.conf.update(
 
 # Auto-discover tasks
 celery_app.autodiscover_tasks([
-    "app.infrastructure.tasks.pricing_tasks",
-    "app.infrastructure.tasks.notification_tasks",
-    "app.infrastructure.tasks.data_tasks",
-    "app.infrastructure.tasks.maintenance_tasks",
+    "app.core.tasks",
 ])
 
 # Task base class for dependency injection
@@ -150,21 +147,21 @@ class BaseTask(celery_app.Task):
     @property
     def pricing_service(self):
         if self._pricing_service is None:
-            from app.api.dependencies import get_pricing_service
+            from app.adapter.inbound.web.dependencies import get_pricing_service
             self._pricing_service = get_pricing_service()
         return self._pricing_service
 
     @property
     def notification_service(self):
         if self._notification_service is None:
-            from app.api.dependencies import get_notification_service
+            from app.adapter.inbound.web.dependencies import get_notification_service
             self._notification_service = get_notification_service()
         return self._notification_service
 
     @property
     def analytics_service(self):
         if self._analytics_service is None:
-            from app.api.dependencies import get_analytics_service
+            from app.adapter.inbound.web.dependencies import get_analytics_service
             self._analytics_service = get_analytics_service()
         return self._analytics_service
 
@@ -174,21 +171,21 @@ celery_app.Task = BaseTask
 
 ### Task Implementation
 
-**Pricing Tasks** (`app/infrastructure/tasks/pricing_tasks.py`):
+**Pricing Tasks** (`app/adapter/outbound/tasks/pricing_tasks.py`):
 
 ```python
 import asyncio
 from typing import Dict, List, Any
 from uuid import UUID
 from celery import shared_task
-from app.infrastructure.tasks.celery_app import celery_app
+from app.core.celery_app import celery_app
 
 @shared_task(bind=True, name="pricing.calculate_bulk_pricing")
 def calculate_bulk_pricing(self, specifications: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Calculate pricing for multiple specifications in background"""
     try:
         # Convert to domain objects
-        from app.domains.pricing.models import PartSpecification
+        from app.core.domain.pricing.models import PartSpecification
 
         results = []
         for spec_data in specifications:
@@ -277,7 +274,7 @@ def recalculate_customer_quotes(self, customer_id: str, material_code: str) -> D
 
         try:
             # Get customer's active quotes
-            from app.domains.quotes.models import QuoteStatus
+            from app.core.domain.quotes.models import QuoteStatus
 
             quotes = loop.run_until_complete(
                 self.pricing_service.get_customer_quotes(
@@ -328,19 +325,19 @@ def recalculate_customer_quotes(self, customer_id: str, material_code: str) -> D
         raise
 ```
 
-**Notification Tasks** (`app/infrastructure/tasks/notification_tasks.py`):
+**Notification Tasks** (`app/adapter/outbound/tasks/notification_tasks.py`):
 
 ```python
 from typing import Dict, List, Any
 from celery import shared_task
-from app.infrastructure.tasks.celery_app import celery_app
+from app.core.celery_app import celery_app
 
 @shared_task(bind=True, name="notifications.send_quote_email")
 def send_quote_email(self, quote_id: str, customer_email: str, template_data: Dict[str, Any]) -> Dict[str, Any]:
     """Send quote email to customer"""
     try:
         import asyncio
-        from app.domains.notifications.services import EmailService
+        from app.core.domain.notifications.services import EmailService
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -397,7 +394,7 @@ def send_low_stock_alerts(self, low_stock_items: List[Dict[str, Any]]) -> Dict[s
     """Send low stock alerts to procurement team"""
     try:
         import asyncio
-        from app.domains.notifications.services import EmailService
+        from app.core.domain.notifications.services import EmailService
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -481,13 +478,13 @@ def send_bulk_notifications(self, notifications: List[Dict[str, Any]]) -> Dict[s
     }
 ```
 
-**Maintenance Tasks** (`app/infrastructure/tasks/maintenance_tasks.py`):
+**Maintenance Tasks** (`app/adapter/outbound/tasks/maintenance_tasks.py`):
 
 ```python
 import asyncio
 from datetime import datetime, timedelta
 from celery import shared_task
-from app.infrastructure.tasks.celery_app import celery_app
+from app.core.celery_app import celery_app
 
 @shared_task(bind=True, name="maintenance.expire_old_quotes")
 def expire_old_quotes(self) -> Dict[str, Any]:
@@ -524,7 +521,7 @@ def cleanup_expired_reservations(self) -> Dict[str, Any]:
         asyncio.set_event_loop(loop)
 
         try:
-            from app.api.dependencies import get_inventory_service
+            from app.adapter.inbound.web.dependencies import get_inventory_service
             inventory_service = get_inventory_service()
 
             cleaned_count = loop.run_until_complete(
@@ -554,7 +551,7 @@ def check_system_health(self) -> Dict[str, Any]:
         asyncio.set_event_loop(loop)
 
         try:
-            from app.api.dependencies import get_health_service
+            from app.adapter.inbound.web.dependencies import get_health_service
             health_service = get_health_service()
 
             health_status = loop.run_until_complete(
@@ -596,8 +593,8 @@ def database_maintenance(self) -> Dict[str, Any]:
 
         try:
             # Clean up old log entries
-            from app.infrastructure.database.postgres.connection import PostgreSQLConnection
-            from app.core.config.settings import settings
+            from app.adapter.outbound.persistence.connection import PostgreSQLConnection
+            from app.core.config import settings
 
             db_connection = PostgreSQLConnection(settings.postgres_url)
 
@@ -638,7 +635,7 @@ def send_system_alert(self, alert_data: Dict[str, Any]) -> Dict[str, Any]:
     """Send system alert to operations team"""
     try:
         import asyncio
-        from app.domains.notifications.services import EmailService
+        from app.core.domain.notifications.services import EmailService
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -686,13 +683,13 @@ def send_system_alert(self, alert_data: Dict[str, Any]) -> Dict[str, Any]:
 make celery-worker
 
 # Or manually
-uv run celery -A app.infrastructure.tasks.celery_app worker --loglevel=info
+uv run celery -A app.core.celery_app worker --loglevel=info
 
 # Start worker for specific queue
-uv run celery -A app.infrastructure.tasks.celery_app worker --loglevel=info -Q pricing
+uv run celery -A app.core.celery_app worker --loglevel=info -Q pricing
 
 # Start multiple workers for different queues
-uv run celery -A app.infrastructure.tasks.celery_app worker --loglevel=info -Q pricing,notifications
+uv run celery -A app.core.celery_app worker --loglevel=info -Q pricing,notifications
 ```
 
 **Start Celery Beat (Scheduler)**:
@@ -701,7 +698,7 @@ uv run celery -A app.infrastructure.tasks.celery_app worker --loglevel=info -Q p
 make celery-beat
 
 # Or manually
-uv run celery -A app.infrastructure.tasks.celery_app beat --loglevel=info
+uv run celery -A app.core.celery_app beat --loglevel=info
 ```
 
 **Start Flower (Monitoring)**:
@@ -710,7 +707,7 @@ uv run celery -A app.infrastructure.tasks.celery_app beat --loglevel=info
 make celery-flower
 
 # Or manually
-uv run celery -A app.infrastructure.tasks.celery_app flower --port=5555
+uv run celery -A app.core.celery_app flower --port=5555
 ```
 
 ### Production Environment
@@ -718,7 +715,7 @@ uv run celery -A app.infrastructure.tasks.celery_app flower --port=5555
 **Production Worker Configuration**:
 ```bash
 # Start production worker with optimized settings
-uv run celery -A app.infrastructure.tasks.celery_app worker \
+uv run celery -A app.core.celery_app worker \
     --loglevel=warning \
     --concurrency=4 \
     --max-tasks-per-child=1000 \
@@ -758,7 +755,7 @@ WantedBy=multi-user.target
 services:
   celery-worker:
     build: .
-    command: uv run celery -A app.infrastructure.tasks.celery_app worker --loglevel=info
+    command: uv run celery -A app.core.celery_app worker --loglevel=info
     depends_on:
       - redis
       - postgres
@@ -771,7 +768,7 @@ services:
 
   celery-beat:
     build: .
-    command: uv run celery -A app.infrastructure.tasks.celery_app beat --loglevel=info
+    command: uv run celery -A app.core.celery_app beat --loglevel=info
     depends_on:
       - redis
       - postgres
@@ -784,7 +781,7 @@ services:
 
   flower:
     build: .
-    command: uv run celery -A app.infrastructure.tasks.celery_app flower --port=5555
+    command: uv run celery -A app.core.celery_app flower --port=5555
     ports:
       - "5555:5555"
     depends_on:
@@ -800,8 +797,7 @@ services:
 
 **From FastAPI Endpoints**:
 ```python
-from app.infrastructure.tasks.pricing_tasks import calculate_bulk_pricing
-from app.infrastructure.tasks.notification_tasks import send_quote_email
+from app.core.tasks import calculate_bulk_pricing, send_quote_email
 
 @router.post("/bulk-pricing")
 async def create_bulk_pricing_job(specifications: List[Dict[str, Any]]):
@@ -818,7 +814,7 @@ async def create_bulk_pricing_job(specifications: List[Dict[str, Any]]):
 @router.get("/jobs/{job_id}")
 async def get_job_status(job_id: str):
     """Get job status and results"""
-    from app.infrastructure.tasks.celery_app import celery_app
+    from app.core.celery_app import celery_app
 
     task = celery_app.AsyncResult(job_id)
 
@@ -943,25 +939,25 @@ Access Flower at `http://localhost:5555` to monitor:
 
 ```bash
 # Monitor active workers
-uv run celery -A app.infrastructure.tasks.celery_app status
+uv run celery -A app.core.celery_app status
 
 # Monitor events in real-time
-uv run celery -A app.infrastructure.tasks.celery_app events
+uv run celery -A app.core.celery_app events
 
 # Show active tasks
-uv run celery -A app.infrastructure.tasks.celery_app inspect active
+uv run celery -A app.core.celery_app inspect active
 
 # Show scheduled tasks
-uv run celery -A app.infrastructure.tasks.celery_app inspect scheduled
+uv run celery -A app.core.celery_app inspect scheduled
 
 # Show worker statistics
-uv run celery -A app.infrastructure.tasks.celery_app inspect stats
+uv run celery -A app.core.celery_app inspect stats
 
 # Purge all tasks from queue
-uv run celery -A app.infrastructure.tasks.celery_app purge
+uv run celery -A app.core.celery_app purge
 
 # Revoke a specific task
-uv run celery -A app.infrastructure.tasks.celery_app revoke <task_id>
+uv run celery -A app.core.celery_app revoke <task_id>
 ```
 
 ### Health Checks
@@ -995,7 +991,7 @@ def worker_health_check(self):
 
 **Queue Length Monitoring**:
 ```python
-from app.infrastructure.tasks.celery_app import celery_app
+from app.core.celery_app import celery_app
 
 def get_queue_lengths():
     """Get current queue lengths"""
@@ -1024,23 +1020,23 @@ def get_queue_lengths():
 **Horizontal Scaling**:
 ```bash
 # Multiple workers on same machine
-uv run celery -A app.infrastructure.tasks.celery_app worker --concurrency=8 -n worker1@%h
-uv run celery -A app.infrastructure.tasks.celery_app worker --concurrency=8 -n worker2@%h
+uv run celery -A app.core.celery_app worker --concurrency=8 -n worker1@%h
+uv run celery -A app.core.celery_app worker --concurrency=8 -n worker2@%h
 
 # Workers on different machines
 # Machine 1:
-uv run celery -A app.infrastructure.tasks.celery_app worker -n worker@machine1
+uv run celery -A app.core.celery_app worker -n worker@machine1
 
 # Machine 2:
-uv run celery -A app.infrastructure.tasks.celery_app worker -n worker@machine2
+uv run celery -A app.core.celery_app worker -n worker@machine2
 ```
 
 **Queue-Based Scaling**:
 ```bash
 # Dedicated workers for different queues
-uv run celery -A app.infrastructure.tasks.celery_app worker -Q pricing --concurrency=4
-uv run celery -A app.infrastructure.tasks.celery_app worker -Q notifications --concurrency=8
-uv run celery -A app.infrastructure.tasks.celery_app worker -Q maintenance --concurrency=2
+uv run celery -A app.core.celery_app worker -Q pricing --concurrency=4
+uv run celery -A app.core.celery_app worker -Q notifications --concurrency=8
+uv run celery -A app.core.celery_app worker -Q maintenance --concurrency=2
 ```
 
 ### Memory Management
@@ -1120,10 +1116,10 @@ def monitored_task(data):
 **Worker Not Processing Tasks**:
 ```bash
 # Check worker status
-uv run celery -A app.infrastructure.tasks.celery_app inspect ping
+uv run celery -A app.core.celery_app inspect ping
 
 # Check if worker is consuming from correct queues
-uv run celery -A app.infrastructure.tasks.celery_app inspect active_queues
+uv run celery -A app.core.celery_app inspect active_queues
 
 # Restart worker
 sudo systemctl restart celery-worker
@@ -1132,7 +1128,7 @@ sudo systemctl restart celery-worker
 **Memory Issues**:
 ```bash
 # Monitor worker memory usage
-uv run celery -A app.infrastructure.tasks.celery_app inspect memdump
+uv run celery -A app.core.celery_app inspect memdump
 
 # Check for memory leaks
 ps aux | grep celery
@@ -1141,7 +1137,7 @@ ps aux | grep celery
 **Task Stuck in Pending**:
 ```python
 # Check task status
-from app.infrastructure.tasks.celery_app import celery_app
+from app.core.celery_app import celery_app
 task = celery_app.AsyncResult('task-id')
 print(task.state, task.info)
 

@@ -21,28 +21,19 @@ class TestHealthEndpoints:
 
         data = response.json()
         assert data["status"] == "healthy"
-        assert "app_name" in data
-        assert "version" in data
-        assert "environment" in data
+        assert "service" in data  # Actual API response field
 
-    def test_detailed_health_check(self, test_client: TestClient):
-        """Test the detailed health check endpoint."""
-        response = test_client.get("/health/detailed")
+    def test_root_endpoint_info(self, test_client: TestClient):
+        """Test the root endpoint provides app information."""
+        response = test_client.get("/")
 
         assert response.status_code == 200
 
         data = response.json()
-        assert "status" in data
-        assert "app_name" in data
+        assert "message" in data
         assert "version" in data
-        assert "environment" in data
-        assert "timestamp" in data
-        assert "checks" in data
-
-        # Should include database health checks
-        checks = data["checks"]
-        assert "application" in checks
-        assert checks["application"]["status"] == "healthy"
+        assert "docs" in data
+        assert "health" in data
 
     def test_health_check_response_format(self, test_client: TestClient):
         """Test that health check responses have the correct format."""
@@ -53,8 +44,8 @@ class TestHealthEndpoints:
 
         data = response.json()
 
-        # Required fields
-        required_fields = ["status", "app_name", "version", "environment"]
+        # Required fields (match actual API response)
+        required_fields = ["status", "service"]
         for field in required_fields:
             assert field in data, f"Missing required field: {field}"
             assert data[field] is not None, f"Field {field} is None"
@@ -67,22 +58,8 @@ class TestHealthEndpoints:
 
         data = response.json()
 
-        # Status should be either "healthy" or "unhealthy"
-        assert data["status"] in ["healthy", "unhealthy"]
-
-    def test_detailed_health_includes_database_info(self, test_client: TestClient):
-        """Test that detailed health check includes database information."""
-        response = test_client.get("/health/detailed")
-
-        assert response.status_code == 200
-
-        data = response.json()
-        checks = data["checks"]
-
-        # Should have database checks (mocked in tests)
-        # The exact databases present depend on the test configuration
-        assert isinstance(checks, dict)
-        assert len(checks) > 0
+        # Status should be "healthy"
+        assert data["status"] == "healthy"
 
     @pytest.mark.asyncio
     async def test_health_check_with_async_client(self, async_test_client):
@@ -106,12 +83,9 @@ class TestHealthEndpoints:
         statuses = [r["status"] for r in responses]
         assert len(set(statuses)) == 1, "Health check status should be consistent"
 
-        # App name and version should be consistent
-        app_names = [r["app_name"] for r in responses]
-        versions = [r["version"] for r in responses]
-
-        assert len(set(app_names)) == 1, "App name should be consistent"
-        assert len(set(versions)) == 1, "Version should be consistent"
+        # Service name should be consistent
+        services = [r["service"] for r in responses]
+        assert len(set(services)) == 1, "Service name should be consistent"
 
     def test_health_check_headers(self, test_client: TestClient):
         """Test that health check includes appropriate headers."""
@@ -119,14 +93,8 @@ class TestHealthEndpoints:
 
         assert response.status_code == 200
 
-        # Should have request ID header (added by middleware)
-        assert "X-Request-ID" in response.headers
-
-        # Should have process time header (added by middleware)
-        assert "X-Process-Time" in response.headers
-
         # Content type should be JSON
-        assert response.headers["content-type"] == "application/json"
+        assert "application/json" in response.headers["content-type"]
 
     def test_health_endpoint_performance(self, test_client: TestClient):
         """Test that health endpoint responds quickly."""
@@ -171,22 +139,8 @@ class TestHealthEndpoints:
         data = response.json()
         assert "message" in data
         assert "version" in data
-        assert "health_check" in data
+        assert "docs" in data
+        assert "health" in data
 
         # Health check URL should be provided
-        assert data["health_check"] == "/health"
-
-    def test_root_endpoint_links(self, test_client: TestClient):
-        """Test that root endpoint provides correct links."""
-        response = test_client.get("/")
-
-        assert response.status_code == 200
-
-        data = response.json()
-
-        # Should reference health check endpoint
-        assert data["health_check"] == "/health"
-
-        # In development mode, should include docs URL
-        if "docs_url" in data and data["docs_url"] is not None:
-            assert data["docs_url"] == "/docs"
+        assert data["health"] == "/health"

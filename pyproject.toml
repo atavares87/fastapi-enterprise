@@ -6,7 +6,7 @@ authors = [
     {name = "Your Name", email = "your.email@example.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -15,7 +15,6 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
 ]
 
 # Core dependencies
@@ -27,10 +26,9 @@ dependencies = [
     "pydantic-settings>=2.1.0",
     # Database dependencies
     "sqlalchemy>=2.0.0",
-    "sqlmodel>=0.0.14",
     "alembic>=1.13.0",
     "asyncpg>=0.29.0", # PostgreSQL async driver
-    "psycopg2-binary>=2.9.0", # PostgreSQL sync driver
+    "psycopg2-binary>=2.9.0", # PostgreSQL sync driver (for Alembic migrations only)
     # MongoDB dependencies
     "motor>=3.3.0", # Async MongoDB driver
     "pymongo>=4.6.0",
@@ -42,8 +40,6 @@ dependencies = [
     "celery>=5.3.0",
     "flower>=2.0.0", # Celery monitoring
     # Security and authentication
-    "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
     "python-multipart>=0.0.6", # Form data support
     # Utilities
     "python-dotenv>=1.0.0",
@@ -54,7 +50,6 @@ dependencies = [
     "opentelemetry-api>=1.21.0",
     "opentelemetry-sdk>=1.21.0",
     "opentelemetry-exporter-otlp>=1.21.0",
-    "opentelemetry-exporter-prometheus>=0.42b0",
     "opentelemetry-instrumentation-fastapi>=0.42b0",
     "opentelemetry-instrumentation-requests>=0.42b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.42b0",
@@ -63,7 +58,7 @@ dependencies = [
     "opentelemetry-instrumentation-pymongo>=0.42b0",
     "opentelemetry-instrumentation-httpx>=0.42b0",
     "opentelemetry-propagator-b3>=1.21.0",
-    "prometheus-client>=0.19.0",
+    "prometheus-fastapi-instrumentator>=7.0.0",  # STANDARD library for Prometheus metrics in FastAPI
 ]
 
 # Development dependencies
@@ -146,7 +141,7 @@ exclude_lines = [
 ]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.11"
 strict = true
 warn_return_any = true
 warn_unused_configs = true

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides a comprehensive guide to the FastAPI Enterprise project structure, explaining the purpose of each directory and file, and how they work together to implement hexagonal architecture principles.
+This document describes the FastAPI Enterprise project structure, implementing **Hexagonal Architecture** with **Functional Core, Imperative Shell** principles.
 
 ## Root Directory Structure
 
@@ -10,277 +10,337 @@ This document provides a comprehensive guide to the FastAPI Enterprise project s
 fastapi_enterprise/
 ├── .env.example                 # Environment variables template
 ├── .gitignore                   # Git ignore rules
-├── .pre-commit-config.yaml      # Pre-commit hooks configuration
-├── .cursorrules                 # Cursor AI assistant rules
 ├── docker-compose.yml           # Multi-service Docker configuration
 ├── Dockerfile                   # Application container definition
 ├── Makefile                     # Build and development commands
 ├── pyproject.toml               # Python project configuration
 ├── README.md                    # Project overview and quick start
+├── DEVELOPMENT.md               # Development guide
+├── README-quickstart.md         # Quick start guide
+├── README-LOAD-TESTING.md       # Load testing guide
+├── README-observability.md      # Observability guide
+├── GOLDEN4_METRICS_COMPLETE.md  # Golden 4 metrics reference
+├── METRICS_DASHBOARD_FIX.md     # Dashboard troubleshooting
 ├── app/                         # Main application code
 ├── tests/                       # Test suite
 ├── docs/                        # Comprehensive documentation
-├── migrations/                  # Database migration files
+├── observability/               # Grafana, Prometheus, OTEL configs
 ├── scripts/                     # Utility and deployment scripts
-└── .pytest_cache/               # Pytest cache (auto-generated)
+├── alembic/                     # Database migrations
+└── k6-load-test.js              # Load testing script
 ```
 
 ## Application Structure (`app/`)
 
-The `app/` directory follows hexagonal architecture principles with clear layer separation:
+Following hexagonal architecture with clear adapter/core separation:
 
 ```
 app/
-├── __init__.py                  # Application package marker
-├── main.py                      # FastAPI application entry point
-├── api/                         # Interface Layer (Controllers & Routes)
-├── core/                        # Application Layer (Use Cases & Config)
-├── domains/                     # Domain Layer (Business Logic)
-└── infrastructure/              # Infrastructure Layer (External Adapters)
+├── adapter/                     # ADAPTERS (External interfaces)
+│   ├── inbound/                # PRIMARY Adapters (drive the app)
+│   │   └── web/                # HTTP/REST interface
+│   │       ├── dependencies.py     # Dependency injection
+│   │       ├── metrics_middleware.py  # Golden 4 metrics
+│   │       ├── pricing.py          # API endpoints/controllers
+│   │       └── schemas.py          # HTTP DTOs (request/response)
+│   │
+│   └── outbound/               # SECONDARY Adapters (driven by app)
+│       ├── persistence/        # Data access
+│       │   ├── cost_data_adapter.py
+│       │   └── pricing_config_adapter.py
+│       │
+│       └── telemetry/          # Monitoring & metrics
+│           ├── metrics_adapter.py
+│           └── golden4_metrics_adapter.py
+│
+├── core/                        # CORE (The Hexagon)
+│   ├── domain/                 # DOMAIN (Functional Core)
+│   │   ├── cost/              # Cost domain
+│   │   │   ├── models.py          # Value objects, entities
+│   │   │   └── calculations.py    # Pure business functions
+│   │   │
+│   │   └── pricing/            # Pricing domain
+│   │       ├── models.py          # Value objects, entities
+│   │       └── calculations.py    # Pure business functions
+│   │
+│   ├── application/            # APPLICATION (Use Cases)
+│   │   ├── cost/              # Cost use cases
+│   │   └── pricing/            # Pricing use cases
+│   │       └── use_cases.py       # CalculatePricingUseCase
+│   │
+│   ├── port/                   # PORTS (Interfaces)
+│   │   ├── inbound/           # Input port interfaces (empty for now)
+│   │   └── outbound/           # Output port interfaces
+│   │       ├── cost_ports.py      # CostDataPort
+│   │       ├── pricing_ports.py   # PricingConfigPort, TelemetryPort
+│   │       └── metrics_ports.py   # HTTPMetricsPort, SystemMetricsPort
+│   │
+│   ├── config.py               # Application configuration
+│   ├── database.py             # Database connections
+│   ├── telemetry.py            # OpenTelemetry setup
+│   ├── logging.py              # Structured logging
+│   ├── security.py             # Security utilities (REMOVED - not used)
+│   ├── exceptions.py           # Application exceptions
+│   ├── repository.py           # Base repository interfaces
+│   ├── tasks.py                # Celery task definitions
+│   ├── celery_app.py           # Celery application
+│   └── background_tasks.py     # Background metric collectors
+│
+└── main.py                      # FastAPI application entry point
 ```
 
-### Interface Layer (`app/api/`)
+## Layer Responsibilities
 
-The interface layer handles HTTP requests and responses, input validation, and error handling.
+### Adapter Layer (`app/adapter/`)
 
-```
-app/api/
-├── __init__.py                  # Package initialization
-├── dependencies.py              # FastAPI dependency injection setup
-├── middleware.py                # HTTP middleware (logging, CORS, etc.)
-├── errors.py                    # Global error handlers
-└── v1/                          # API version 1
-    ├── __init__.py              # Version package initialization
-    ├── health.py                # Health check endpoints
-    └── pricing.py               # Pricing calculation endpoints
-```
+External interfaces that **translate** between the outside world and the core.
 
-**Key Files:**
+#### Inbound Adapters (`adapter/inbound/`)
 
-- **`dependencies.py`**: Configures FastAPI dependency injection for repositories, services, and configuration
-- **`middleware.py`**: Request/response middleware for logging, timing, CORS, and security headers
-- **`errors.py`**: Global exception handlers that convert domain exceptions to HTTP responses
-- **`v1/`**: Versioned API endpoints following REST conventions
-
-### Application Layer (`app/core/`)
-
-The application layer orchestrates use cases, manages configuration, and handles cross-cutting concerns.
+**Drive the application** - convert external input into use case calls.
 
 ```
-app/core/
-├── __init__.py                  # Package initialization
-├── exceptions.py                # Application-level exceptions
-├── config/                      # Configuration management
-│   ├── __init__.py              # Config package initialization
-│   ├── settings.py              # Pydantic settings and environment management
-│   └── database.py              # Database connection configuration
-└── security/                    # Authentication and authorization
-    ├── __init__.py              # Security package initialization
-    ├── auth.py                  # JWT token handling and validation
-    └── permissions.py           # Role-based access control
+adapter/inbound/web/
+├── pricing.py              # FastAPI endpoints (REST API)
+├── schemas.py              # Pydantic models for HTTP (DTOs)
+├── dependencies.py         # FastAPI dependency injection
+└── metrics_middleware.py   # Golden 4 metrics middleware
 ```
 
-**Key Files:**
+**Responsibilities:**
 
-- **`config/settings.py`**: Centralized configuration using Pydantic BaseSettings
-- **`config/database.py`**: Database connection pooling and session management
-- **`security/auth.py`**: JWT authentication, token generation and validation
-- **`security/permissions.py`**: Authorization decorators and permission checking
-- **`exceptions.py`**: Application-specific exceptions that don't belong to domains
+- HTTP request/response handling
+- Input validation (Pydantic)
+- Error translation to HTTP responses
+- Dependency injection setup
+- Metrics recording (latency, traffic, errors)
 
-### Domain Layer (`app/domains/`)
+#### Outbound Adapters (`adapter/outbound/`)
 
-The domain layer contains pure business logic, free from external dependencies.
-
-```
-app/domains/
-├── __init__.py                  # Package initialization
-├── shared/                      # Shared domain concepts
-│   ├── __init__.py              # Shared package initialization
-│   ├── base.py                  # Base domain classes and interfaces
-│   └── value_objects.py         # Common value objects (Money, Dimensions, etc.)
-├── pricing/                     # Pricing domain
-│   ├── __init__.py              # Pricing package initialization
-│   ├── models.py                # Domain entities and value objects
-│   ├── services.py              # Domain services and business logic
-│   ├── repositories.py          # Repository interfaces (ports)
-│   └── exceptions.py            # Domain-specific exceptions
-└── cost/                        # Cost calculation domain
-    ├── __init__.py              # Cost package initialization
-    ├── models.py                # Cost-related domain models
-    ├── services.py              # Cost calculation business logic
-    ├── repositories.py          # Cost repository interfaces
-    └── exceptions.py            # Cost-specific exceptions
-```
-
-**Domain Structure Pattern:**
-
-Each domain follows a consistent structure:
-
-- **`models.py`**: Domain entities, value objects, and aggregates
-- **`services.py`**: Stateless domain services that implement business rules
-- **`repositories.py`**: Abstract repository interfaces (ports in hexagonal architecture)
-- **`exceptions.py`**: Domain-specific exceptions and error conditions
-
-### Infrastructure Layer (`app/infrastructure/`)
-
-The infrastructure layer implements external adapters and integrations.
+**Driven by the application** - implement port interfaces for external services.
 
 ```
-app/infrastructure/
-├── __init__.py                  # Package initialization
-├── database/                    # Database adapters and implementations
-│   ├── __init__.py              # Database package initialization
-│   ├── postgres/                # PostgreSQL adapter
-│   │   ├── __init__.py          # Postgres package initialization
-│   │   ├── connection.py        # PostgreSQL connection management
-│   │   ├── models.py            # SQLAlchemy ORM models
-│   │   └── repositories/        # Repository implementations
-│   │       ├── __init__.py      # Repository package initialization
-│   │       ├── pricing.py       # Pricing repository implementation
-│   │       └── cost.py          # Cost repository implementation
-│   ├── mongodb/                 # MongoDB adapter
-│   │   ├── __init__.py          # MongoDB package initialization
-│   │   ├── connection.py        # MongoDB connection management
-│   │   ├── models.py            # Beanie ODM models
-│   │   └── repositories/        # MongoDB repository implementations
-│   │       ├── __init__.py      # Repository package initialization
-│   │       └── analytics.py     # Analytics repository implementation
-│   └── redis/                   # Redis adapter
-│       ├── __init__.py          # Redis package initialization
-│       ├── connection.py        # Redis connection management
-│       └── cache.py             # Caching service implementation
-├── external/                    # External service adapters
-│   ├── __init__.py              # External package initialization
-│   ├── material_api.py          # Material data service adapter
-│   └── shipping_api.py          # Shipping calculation service adapter
-└── tasks/                       # Background task implementations
-    ├── __init__.py              # Tasks package initialization
-    ├── celery_app.py            # Celery configuration and setup
-    ├── pricing_tasks.py         # Pricing-related background tasks
-    └── notification_tasks.py    # Notification background tasks
+adapter/outbound/
+├── persistence/
+│   ├── cost_data_adapter.py        # Implements CostDataPort
+│   └── pricing_config_adapter.py   # Implements PricingConfigPort
+│
+└── telemetry/
+    ├── metrics_adapter.py           # Pricing-specific metrics
+    └── golden4_metrics_adapter.py   # HTTP metrics (latency, traffic, errors, saturation)
 ```
 
-**Infrastructure Patterns:**
+**Responsibilities:**
 
-- **Database Adapters**: Each database technology has its own adapter with connection management
-- **Repository Implementations**: Concrete implementations of domain repository interfaces
-- **External Service Adapters**: HTTP clients and integrations with external APIs
-- **Background Tasks**: Celery task definitions for asynchronous processing
+- Database access
+- External API calls
+- File system operations
+- Message queue operations
+- Metrics recording
+
+### Core Layer (`app/core/`)
+
+The **hexagon** - business logic independent of external concerns.
+
+#### Domain Layer (`core/domain/`)
+
+**FUNCTIONAL CORE** - Pure business logic with NO side effects.
+
+```
+core/domain/
+├── cost/
+│   ├── models.py           # CostBreakdown, MaterialCost, ProcessCost
+│   └── calculations.py     # calculate_manufacturing_cost() - PURE FUNCTION
+│
+└── pricing/                # Pricing domain with subdomains
+    ├── models.py           # Base pricing models (PricingRequest, PriceBreakdown, etc.)
+    ├── calculations.py     # Base calculations (complexity_surcharge, weight_estimation)
+    ├── tier/               # Tier subdomain
+    │   ├── models.py       # PricingTier, TierPricing
+    │   └── calculations.py # calculate_tier_pricing() - PURE FUNCTION
+    ├── discount/           # Discount subdomain
+    │   └── calculations.py # calculate_volume_discount(), calculate_final_discount()
+    └── margin/             # Margin subdomain
+        └── calculations.py # calculate_margin() - PURE FUNCTION
+```
+
+**Rules:**
+
+- ✅ Pure functions only
+- ✅ No I/O operations
+- ✅ No database access
+- ✅ No HTTP calls
+- ✅ No current time access (pass as parameter)
+- ✅ No logging
+- ✅ Deterministic behavior
+
+#### Application Layer (`core/application/`)
+
+**ORCHESTRATION** - coordinates functional core with imperative shell.
+
+```
+core/application/
+├── cost/
+│   └── __init__.py
+└── pricing/
+    └── use_cases.py        # CalculatePricingUseCase
+```
+
+**Responsibilities:**
+
+- Orchestrate domain logic
+- Call adapters via ports
+- Transaction management
+- Error handling and conversion
+
+#### Port Layer (`core/port/`)
+
+**INTERFACES** - contracts between core and adapters.
+
+```
+core/port/
+├── inbound/                # Input port interfaces (currently empty)
+└── outbound/               # Output port interfaces
+    ├── cost_ports.py       # CostDataPort
+    ├── pricing_ports.py    # PricingConfigPort, PricingPersistencePort, TelemetryPort
+    └── metrics_ports.py    # HTTPMetricsPort, SystemMetricsPort, SLOMetricsPort
+```
+
+**Types:**
+
+- **Inbound Ports**: Interfaces for primary adapters (use case interfaces)
+- **Outbound Ports**: Interfaces for secondary adapters (repository interfaces, external service interfaces)
+
+#### Infrastructure (`core/`)
+
+Core infrastructure services (not in adapter/ because they're shared):
+
+```
+core/
+├── config.py              # Settings management (Pydantic)
+├── database.py            # PostgreSQL, MongoDB, Redis connections
+├── telemetry.py           # OpenTelemetry setup
+├── logging.py             # Structured logging (structlog)
+├── security.py            # Security utilities (REMOVED - not used)
+├── exceptions.py          # Application-level exceptions
+├── repository.py          # Base repository interfaces
+├── tasks.py               # Celery task definitions
+├── celery_app.py          # Celery configuration
+└── background_tasks.py    # System metrics collectors
+```
 
 ## Test Structure (`tests/`)
 
-The test suite mirrors the application structure with additional test-specific organization:
+Tests mirror the application structure:
 
 ```
 tests/
-├── __init__.py                  # Test package initialization
-├── conftest.py                  # Pytest configuration and fixtures
-├── unit/                        # Unit tests (fast, isolated)
-│   ├── __init__.py              # Unit test package initialization
-│   ├── domains/                 # Domain logic tests
-│   │   ├── __init__.py          # Domain test package initialization
-│   │   ├── test_pricing/        # Pricing domain tests
-│   │   │   ├── __init__.py      # Pricing test package initialization
-│   │   │   ├── test_models.py   # Pricing model tests
-│   │   │   └── test_services.py # Pricing service tests
-│   │   └── test_cost/           # Cost domain tests
-│   │       ├── __init__.py      # Cost test package initialization
-│   │       ├── test_models.py   # Cost model tests
-│   │       └── test_services.py # Cost service tests
-│   └── core/                    # Core application tests
-│       ├── __init__.py          # Core test package initialization
-│       ├── test_config.py       # Configuration tests
-│       └── test_security.py     # Security component tests
-├── integration/                 # Integration tests (database, external APIs)
-│   ├── __init__.py              # Integration test package initialization
-│   ├── test_database.py         # Database integration tests
-│   ├── test_repositories.py     # Repository implementation tests
-│   └── test_external_apis.py    # External API integration tests
-├── api/                         # API endpoint tests
-│   ├── __init__.py              # API test package initialization
-│   ├── test_health.py           # Health endpoint tests
-│   └── test_pricing.py          # Pricing endpoint tests
-└── contract/                    # Contract tests using JSON Schema
-    ├── __init__.py              # Contract test package initialization
-    ├── schemas.py               # JSON Schema definitions
-    ├── test_api_contracts.py    # API contract validation tests
-    └── README.md                # Contract testing documentation
+├── conftest.py                    # Pytest fixtures and configuration
+├── unit/                          # Unit tests (fast, no I/O)
+│   ├── domains/                   # Domain logic tests
+│   │   ├── test_cost_calculations.py
+│   │   └── test_pricing_calculations.py
+│   └── modules/
+│       └── auth/
+├── integration/                   # Integration tests (with databases)
+│   ├── test_api_integration.py
+│   ├── test_data_factory.py
+│   └── test_pricing_api.py
+├── api/                           # API endpoint tests
+│   └── test_health.py
+├── contract/                      # API contract tests
+│   ├── README.md
+│   ├── schemas.py
+│   └── test_api_contracts.py
+└── test_pricing_limits.py
 ```
 
 **Test Categories:**
 
-- **Unit Tests**: Fast, isolated tests for business logic and utilities
-- **Integration Tests**: Tests that involve databases and external services
-- **API Tests**: HTTP endpoint testing with real request/response cycles
-- **Contract Tests**: JSON Schema validation for API contracts
+- **Unit Tests** (`unit/`): Test pure functions directly, no mocks needed
+- **Integration Tests** (`integration/`): Test adapters with real databases
+- **API Tests** (`api/`): Test HTTP endpoints
+- **Contract Tests** (`contract/`): Validate API contracts
 
 ## Documentation Structure (`docs/`)
 
-Comprehensive documentation organized by concern:
-
 ```
 docs/
-├── README.md                    # Documentation hub and navigation
-├── architecture/                # Architecture documentation
-│   ├── application-architecture.md  # Overall system design
-│   ├── folder-structure.md      # This document
-│   ├── design-principles.md     # Guiding principles and patterns
-│   └── database-architecture.md # Multi-database strategy
-├── development/                 # Development guides
-│   ├── getting-started.md       # Project setup and first steps
-│   ├── adding-features.md       # Feature development workflow
-│   ├── domain-development.md    # Creating new business domains
-│   ├── api-development.md       # Building and testing APIs
-│   └── testing.md               # Comprehensive testing strategy
-├── operations/                  # Operations and deployment
-│   ├── database-migrations.md   # Alembic migration management
-│   ├── celery-workers.md        # Background task management
-│   ├── docker-deployment.md     # Containerization and deployment
-│   ├── environment-config.md    # Settings and environment management
-│   └── monitoring-logging.md    # Observability and debugging
-└── features/                    # Feature-specific documentation
-    ├── pricing-system.md        # Manufacturing pricing calculations
-    ├── cost-management.md       # Cost calculation and optimization
-    └── health-checks.md         # System monitoring and diagnostics
+├── README.md                           # Documentation hub
+├── architecture/                       # Architecture documentation
+│   ├── application-architecture.md    # Overall system design
+│   ├── folder-structure.md            # This document
+│   ├── hexagonal-architecture.md      # Hexagonal architecture details
+│   ├── design-principles.md           # Guiding principles
+│   └── database-architecture.md       # Multi-database strategy
+├── development/                        # Development guides
+│   ├── getting-started.md             # Project setup
+│   ├── adding-features.md             # Feature development workflow
+│   └── domain-development.md          # Creating new domains
+├── operations/                         # Operations documentation
+│   ├── celery-workers.md              # Background task management
+│   ├── database-migrations.md         # Alembic migrations
+│   ├── docker-deployment.md           # Container deployment
+│   ├── golden4-metrics.md             # Golden 4 metrics guide
+│   └── slo-definitions.md             # SLO targets and definitions
+└── features/                           # Feature documentation
+    └── pricing-system.md              # Manufacturing pricing system
+```
+
+## Observability Structure (`observability/`)
+
+Monitoring, metrics, and alerting configuration:
+
+```
+observability/
+├── prometheus.yml                      # Prometheus configuration
+├── alertmanager.yml                    # Alertmanager configuration
+├── pricing_alerts.yml                  # Pricing-specific alerts
+├── otel-collector-config.yaml          # OpenTelemetry collector config
+├── mongo-init.js                       # MongoDB initialization
+├── grafana/
+│   ├── dashboards/
+│   │   ├── enterprise-metrics-dashboard.json  # Golden 4 metrics
+│   │   ├── pricing-dashboard.json            # Pricing-specific
+│   │   └── slo-dashboard.json                # SLO tracking
+│   └── provisioning/
+│       ├── dashboards/
+│       │   └── dashboards.yml
+│       └── datasources/
+│           └── datasources.yml
 ```
 
 ## Configuration Files
 
-### Root Configuration Files
+### Root Configuration
 
-- **`.env.example`**: Template for environment variables with documentation
-- **`pyproject.toml`**: Python project metadata, dependencies, and tool configuration
-- **`Makefile`**: Development commands and build automation
-- **`docker-compose.yml`**: Multi-service container orchestration
-- **`Dockerfile`**: Production container definition
-- **`.pre-commit-config.yaml`**: Code quality checks and formatting
-- **`.cursorrules`**: AI assistant guidelines for the project
+- **`pyproject.toml`**: Python dependencies, tool configuration (pytest, black, ruff, mypy)
+- **`Makefile`**: Development commands (format, lint, test, run)
+- **`docker-compose.yml`**: PostgreSQL, MongoDB, Redis, Prometheus, Grafana, Jaeger
+- **`Dockerfile`**: Production container image
+- **`.env.example`**: Environment variables template
 
-### Database Migrations (`migrations/`)
+### Database Migrations (`alembic/`)
 
 ```
-migrations/
-├── alembic.ini                  # Alembic configuration
-├── env.py                       # Migration environment setup
-├── script.py.mako               # Migration script template
-└── versions/                    # Migration version files
-    ├── 001_initial_schema.py    # Initial database schema
-    ├── 002_add_pricing_tables.py # Pricing feature tables
-    └── 003_add_cost_tables.py   # Cost calculation tables
+alembic/
+├── alembic.ini                         # Alembic configuration
+├── env.py                              # Migration environment
+├── script.py.mako                      # Migration template
+└── versions/
+    └── 20250928_1614_554483b016d0_initial_migration.py
 ```
 
 ## Scripts Directory (`scripts/`)
 
-Utility scripts for development and deployment:
+Utility scripts:
 
 ```
 scripts/
-├── setup_dev.sh                # Development environment setup
-├── run_tests.sh                # Comprehensive test runner
-├── deploy.sh                    # Deployment automation
-├── backup_db.sh                # Database backup utility
-└── check_health.sh             # Health check script
+├── init-mongo.js                # MongoDB initialization
+├── init-postgres.sql            # PostgreSQL initialization
+├── pricing_demo.py              # Pricing API demo/testing script
+└── quick-start.sh               # Quick start automation
 ```
 
 ## File Naming Conventions
@@ -288,68 +348,80 @@ scripts/
 ### Python Files
 
 - **Snake case**: `pricing_service.py`, `database_connection.py`
-- **Descriptive names**: Files should clearly indicate their purpose
-- **Module initialization**: `__init__.py` in every package directory
+- **Descriptive names**: Files clearly indicate purpose
+- **Module initialization**: `__init__.py` in every package
 
 ### Test Files
 
-- **Test prefix**: `test_` prefix for all test files
-- **Mirror structure**: Test files mirror the application structure
-- **Descriptive names**: `test_pricing_calculation.py`, `test_database_connection.py`
+- **Test prefix**: `test_pricing_calculation.py`
+- **Mirror structure**: Tests mirror application structure
+- **Descriptive names**: Clearly indicate what's being tested
 
 ### Documentation Files
 
 - **Kebab case**: `application-architecture.md`, `getting-started.md`
-- **Descriptive names**: Files should clearly indicate their content
-- **Consistent structure**: Similar files follow the same organization pattern
+- **Descriptive names**: Clear indication of content
+- **Consistent structure**: Similar files follow same pattern
 
 ## Import Conventions
 
 ### Absolute Imports
 
-Always use absolute imports from the app root:
+Always use absolute imports from app root:
 
 ```python
-# Good
-from app.domains.pricing.models import PricingCalculation
-from app.infrastructure.database.postgres.repositories.pricing import PostgresPricingRepository
+# ✅ Good
+from app.core.domain.pricing.calculations import calculate_tier_pricing
+from app.adapter.outbound.persistence.cost_data_adapter import CostDataAdapter
 
-# Bad
-from ..models import PricingCalculation
-from ...infrastructure.database.postgres.repositories.pricing import PostgresPricingRepository
+# ❌ Bad
+from ..calculations import calculate_tier_pricing
+from ...adapter.outbound.persistence.cost_data_adapter import CostDataAdapter
 ```
 
-### Layer Dependencies
-
-Respect architectural boundaries in imports:
+### Respect Layer Boundaries
 
 ```python
-# Domain layer - no external dependencies
-from app.domains.shared.value_objects import Money
+# ✅ Domain layer - no external dependencies
+from app.core.domain.pricing.models import PricingRequest
 
-# Application layer - can import from domain
-from app.domains.pricing.services import PricingService
+# ✅ Application layer - can import from domain
+from app.core.domain.pricing.calculations import calculate_tier_pricing
 
-# Infrastructure layer - can import from domain and application
-from app.domains.pricing.repositories import PricingRepository
-from app.core.config.settings import Settings
+# ✅ Adapters - can import from ports and domain
+from app.core.port.outbound.pricing_ports import PricingConfigPort
+from app.core.domain.pricing.models import PricingRequest
 
-# Interface layer - can import from all layers
-from app.domains.pricing.models import PricingRequest
-from app.infrastructure.database.postgres.repositories.pricing import PostgresPricingRepository
+# ❌ Domain importing from adapter - NEVER DO THIS
+from app.adapter.outbound.persistence.pricing_adapter import PricingAdapter
 ```
 
 ## Directory Purpose Summary
 
-| Directory | Purpose | Dependencies | Examples |
-|-----------|---------|--------------|----------|
-| `app/api/` | HTTP interface, routing, validation | FastAPI, Pydantic | Controllers, middleware |
-| `app/core/` | Application orchestration, config | Domain layer | Settings, use cases |
-| `app/domains/` | Business logic, rules | None (pure Python) | Models, services |
-| `app/infrastructure/` | External integrations | Database drivers, HTTP clients | Repositories, adapters |
-| `tests/` | Test coverage | Pytest, test fixtures | Unit, integration tests |
-| `docs/` | Documentation | Markdown | Architecture, guides |
-| `migrations/` | Database schema evolution | Alembic | Schema changes |
-| `scripts/` | Automation and utilities | Shell scripts | Setup, deployment |
+| Directory               | Purpose                        | Dependencies        | Side Effects          |
+| ----------------------- | ------------------------------ | ------------------- | --------------------- |
+| `app/core/domain/`      | Pure business logic            | None                | No                    |
+| `app/core/application/` | Use case orchestration         | Domain, Ports       | No                    |
+| `app/core/port/`        | Interface definitions          | Domain types        | No                    |
+| `app/adapter/inbound/`  | HTTP, CLI interfaces           | Application, Domain | Yes (HTTP I/O)        |
+| `app/adapter/outbound/` | Database, external APIs        | Ports, Domain       | Yes (DB, API I/O)     |
+| `app/core/` (other)     | Configuration, shared services | Various             | Yes (depends on file) |
+| `tests/`                | Test coverage                  | All layers          | Depends on test type  |
+| `docs/`                 | Documentation                  | None                | No                    |
+| `observability/`        | Monitoring configs             | None                | No                    |
 
-This folder structure provides clear separation of concerns, makes the codebase navigable, and supports the hexagonal architecture pattern while maintaining consistency and predictability across the entire project.
+## Key Principles
+
+1. **Dependencies Point Inward**: Domain → Application → Ports → Adapters
+2. **Functional Core**: Domain layer has pure functions, no side effects
+3. **Imperative Shell**: All I/O happens in adapters
+4. **Interface Segregation**: Ports define minimal interfaces
+5. **Dependency Inversion**: Core depends on interfaces, not implementations
+
+This structure provides:
+
+- ✅ Clear separation of concerns
+- ✅ Testable business logic (no mocks needed for domain)
+- ✅ Flexible architecture (easy to swap adapters)
+- ✅ Domain-focused design (business logic is explicit)
+- ✅ Standard hexagonal architecture pattern

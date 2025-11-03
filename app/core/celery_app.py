@@ -54,15 +54,15 @@ celery_app.conf.update(
     # Worker settings
     worker_max_tasks_per_child=1000,
     worker_disable_rate_limits=False,
-    # Beat schedule (for periodic tasks)
+    # Beat schedule (for periodic tasks) - configurable via environment variables
     beat_schedule={
         "cleanup-expired-sessions": {
             "task": "app.core.tasks.cleanup_expired_sessions",
-            "schedule": 3600.0,  # Run every hour
+            "schedule": float(settings.CELERY_CLEANUP_SESSIONS_INTERVAL),
         },
         "health-check": {
             "task": "app.core.tasks.periodic_health_check",
-            "schedule": 300.0,  # Run every 5 minutes
+            "schedule": float(settings.CELERY_HEALTH_CHECK_INTERVAL),
         },
     },
     beat_schedule_filename="celerybeat-schedule",

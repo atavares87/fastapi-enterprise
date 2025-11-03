@@ -138,7 +138,7 @@ async def _cleanup_expired_sessions_async(task_id: str) -> dict[str, Any]:
     return cleanup_summary
 
 
-@celery_app.task(bind=True, max_retries=3)  # type: ignore[misc]
+@celery_app.task(bind=True, max_retries=3, autoretry_for=(Exception,), retry_backoff=True, retry_backoff_max=600, retry_jitter=True)  # type: ignore[misc]
 def cleanup_expired_sessions(self: Any) -> dict[str, Any]:
     """
     Clean up expired user sessions from database.
@@ -149,20 +149,46 @@ def cleanup_expired_sessions(self: Any) -> dict[str, Any]:
     Uses the standard asyncio.run() pattern to execute async database operations
     within a Celery task context.
 
+    Automatically retries up to 3 times with exponential backoff on failure.
+
     Returns:
         dict: Summary of cleanup operation
     """
     try:
         # Standard pattern: Use asyncio.run() to execute async code in Celery tasks
-        return asyncio.run(_cleanup_expired_sessions_async(self.request.id))
+        result = asyncio.run(_cleanup_expired_sessions_async(self.request.id))
+
+        # If partial_failure, consider retrying
+        if (
+            result.get("status") == "partial_failure"
+            and self.request.retries < self.max_retries
+        ):
+            logger.warning(
+                "Partial failure in session cleanup, will retry",
+                task_id=self.request.id,
+                retry_count=self.request.retries,
+            )
+            # Retry with exponential backoff
+            countdown = 2**self.request.retries * 60  # 1min, 2min, 4min
+            raise self.retry(countdown=countdown, max_retries=3)
+
+        return result
 
     except Exception as e:
         logger.error(
             "Unexpected error in session cleanup task",
             error=str(e),
             task_id=self.request.id,
+            retry_count=self.request.retries,
             exc_info=True,
         )
+
+        # Retry with exponential backoff if retries remain
+        if self.request.retries < self.max_retries:
+            countdown = 2**self.request.retries * 60  # 1min, 2min, 4min
+            raise self.retry(exc=e, countdown=countdown, max_retries=3)
+
+        # Final failure after all retries exhausted
         return {
             "task_id": self.request.id,
             "started_at": datetime.utcnow().isoformat(),
@@ -172,6 +198,7 @@ def cleanup_expired_sessions(self: Any) -> dict[str, Any]:
             "total_cleaned": 0,
             "status": "error",
             "error": str(e),
+            "retries_exhausted": True,
             "completed_at": datetime.utcnow().isoformat(),
         }
 
@@ -299,223 +326,3 @@ def periodic_health_check(self: Any) -> dict[str, Any]:
                 }
             ],
         }
-
-
-@celery_app.task(bind=True, max_retries=5)  # type: ignore[misc]
-def send_email(
-    self: Any, to: str, subject: str, body: str, html_body: str | None = None
-) -> dict[str, Any]:
-    """
-    Send email notification.
-
-    This task handles sending emails for various notifications like
-    password resets, welcome emails, etc.
-
-    Args:
-        to: Recipient email address
-        subject: Email subject
-        body: Plain text email body
-        html_body: HTML email body (optional)
-
-    Returns:
-        dict: Email sending result
-    """
-    try:
-        logger.info("Sending email", to=to, subject=subject, task_id=self.request.id)
-
-        # In a real implementation, you would use an email service like:
-        # - Amazon SES
-        # - SendGrid
-        # - Mailgun
-        # - SMTP server
-
-        # For now, we'll just log the email (development mode)
-        email_result = {
-            "task_id": self.request.id,
-            "to": to,
-            "subject": subject,
-            "body": body,
-            "html_body": html_body,
-            "sent_at": datetime.utcnow().isoformat(),
-            "status": "sent",
-            "message": "Email sent successfully (simulated)",
-        }
-
-        logger.info(
-            "Email sent successfully", result=email_result, task_id=self.request.id
-        )
-        return email_result
-
-    except Exception as e:
-        logger.error(
-            "Failed to send email",
-            error=str(e),
-            to=to,
-            subject=subject,
-            task_id=self.request.id,
-        )
-
-        # Retry with exponential backoff
-        retry_count = self.request.retries
-        countdown = 2**retry_count * 60  # 1min, 2min, 4min, 8min, 16min
-
-        raise self.retry(exc=e, countdown=countdown, max_retries=5)
-
-
-@celery_app.task(bind=True)  # type: ignore[misc]
-def generate_report(
-    self: Any, report_type: str, params: dict[str, Any] | None = None
-) -> dict[str, Any]:
-    """
-    Generate various types of reports.
-
-    This task can generate different types of reports like user statistics,
-    system health reports, etc.
-
-    Args:
-        report_type: Type of report to generate
-        params: Report parameters
-
-    Returns:
-        dict: Report generation result
-    """
-    try:
-        logger.info(
-            "Generating report",
-            report_type=report_type,
-            params=params,
-            task_id=self.request.id,
-        )
-
-        report_result = {
-            "task_id": self.request.id,
-            "report_type": report_type,
-            "params": params or {},
-            "generated_at": datetime.utcnow().isoformat(),
-            "status": "completed",
-        }
-
-        if report_type == "user_stats":
-            # Generate user statistics report
-            report_result["data"] = {
-                "total_users": 0,  # Would query database
-                "active_users": 0,
-                "verified_users": 0,
-                "new_users_last_30_days": 0,
-            }
-        elif report_type == "health_summary":
-            # Generate health summary report
-            # TODO: Implement sync version of database health check for Celery
-            health_status = {"postgresql": True, "mongodb": True, "redis": True}
-            report_result["data"] = health_status
-        else:
-            report_result["status"] = "error"
-            report_result["error"] = f"Unknown report type: {report_type}"
-
-        logger.info("Report generated", result=report_result, task_id=self.request.id)
-        return report_result
-
-    except Exception as e:
-        logger.error(
-            "Report generation failed",
-            error=str(e),
-            report_type=report_type,
-            task_id=self.request.id,
-        )
-        return {
-            "task_id": self.request.id,
-            "report_type": report_type,
-            "status": "error",
-            "error": str(e),
-            "generated_at": datetime.utcnow().isoformat(),
-        }
-
-
-@celery_app.task(bind=True, max_retries=3)  # type: ignore[misc]
-def process_file_upload(
-    self: Any, file_path: str, user_id: str, file_type: str
-) -> dict[str, Any]:
-    """
-    Process uploaded files in the background.
-
-    This task handles file processing like image resizing, document parsing,
-    virus scanning, etc.
-
-    Args:
-        file_path: Path to the uploaded file
-        user_id: ID of the user who uploaded the file
-        file_type: Type of file being processed
-
-    Returns:
-        dict: File processing result
-    """
-    try:
-        logger.info(
-            "Processing file upload",
-            file_path=file_path,
-            user_id=user_id,
-            file_type=file_type,
-            task_id=self.request.id,
-        )
-
-        processing_result = {
-            "task_id": self.request.id,
-            "file_path": file_path,
-            "user_id": user_id,
-            "file_type": file_type,
-            "processed_at": datetime.utcnow().isoformat(),
-            "status": "completed",
-            "operations": [],
-        }
-
-        # Simulate file processing operations
-        if file_type in ["image/jpeg", "image/png"]:
-            # Image processing operations
-            processing_result["operations"].extend(
-                [
-                    "virus_scan",
-                    "resize_thumbnail",
-                    "optimize_quality",
-                    "extract_metadata",
-                ]
-            )
-        elif file_type == "application/pdf":
-            # PDF processing operations
-            processing_result["operations"].extend(
-                [
-                    "virus_scan",
-                    "extract_text",
-                    "generate_preview",
-                    "validate_structure",
-                ]
-            )
-        else:
-            # Generic file processing
-            processing_result["operations"].extend(
-                [
-                    "virus_scan",
-                    "validate_format",
-                ]
-            )
-
-        logger.info(
-            "File processing completed",
-            result=processing_result,
-            task_id=self.request.id,
-        )
-        return processing_result
-
-    except Exception as e:
-        logger.error(
-            "File processing failed",
-            error=str(e),
-            file_path=file_path,
-            user_id=user_id,
-            task_id=self.request.id,
-        )
-
-        # Retry with exponential backoff
-        retry_count = self.request.retries
-        countdown = 2**retry_count * 30  # 30s, 1min, 2min
-
-        raise self.retry(exc=e, countdown=countdown, max_retries=3)

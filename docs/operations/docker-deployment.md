@@ -59,7 +59,7 @@ graph TB
 **Dockerfile**:
 ```dockerfile
 # Multi-stage build for production
-FROM python:3.13-slim as base
+FROM python:3.11-slim as base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -140,7 +140,7 @@ FROM base as worker
 ENV ENVIRONMENT=production
 
 # Start Celery worker
-CMD ["uv", "run", "celery", "-A", "app.infrastructure.tasks.celery_app", "worker", "--loglevel=info"]
+CMD ["uv", "run", "celery", "-A", "app.core.celery_app", "worker", "--loglevel=info"]
 
 # Beat stage
 FROM base as beat
@@ -149,7 +149,7 @@ FROM base as beat
 ENV ENVIRONMENT=production
 
 # Start Celery beat
-CMD ["uv", "run", "celery", "-A", "app.infrastructure.tasks.celery_app", "beat", "--loglevel=info"]
+CMD ["uv", "run", "celery", "-A", "app.core.celery_app", "beat", "--loglevel=info"]
 
 # Flower stage
 FROM base as flower
@@ -161,7 +161,7 @@ ENV ENVIRONMENT=production
 EXPOSE 5555
 
 # Start Flower
-CMD ["uv", "run", "celery", "-A", "app.infrastructure.tasks.celery_app", "flower", "--port=5555"]
+CMD ["uv", "run", "celery", "-A", "app.core.celery_app", "flower", "--port=5555"]
 ```
 
 ### Optimized Dockerfile with Caching
@@ -477,7 +477,7 @@ services:
       - POSTGRES_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/fastapi_enterprise
       - MONGODB_URL=mongodb://admin:${MONGODB_PASSWORD}@mongodb:27017/fastapi_enterprise
       - REDIS_URL=redis://redis:6379
-    command: ["uv", "run", "celery", "-A", "app.infrastructure.tasks.celery_app", "worker", "--loglevel=warning", "--concurrency=4", "-Q", "pricing,notifications"]
+    command: ["uv", "run", "celery", "-A", "app.core.celery_app", "worker", "--loglevel=warning", "--concurrency=4", "-Q", "pricing,notifications"]
     depends_on:
       - postgres
       - mongodb
@@ -500,7 +500,7 @@ services:
       - POSTGRES_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/fastapi_enterprise
       - MONGODB_URL=mongodb://admin:${MONGODB_PASSWORD}@mongodb:27017/fastapi_enterprise
       - REDIS_URL=redis://redis:6379
-    command: ["uv", "run", "celery", "-A", "app.infrastructure.tasks.celery_app", "worker", "--loglevel=warning", "--concurrency=2", "-Q", "maintenance,data_processing"]
+    command: ["uv", "run", "celery", "-A", "app.core.celery_app", "worker", "--loglevel=warning", "--concurrency=2", "-Q", "maintenance,data_processing"]
     depends_on:
       - postgres
       - mongodb
@@ -728,9 +728,9 @@ http {
             proxy_buffers 8 4k;
         }
 
-        # Authentication endpoints (stricter rate limiting)
-        location /auth/ {
-            limit_req zone=auth burst=10 nodelay;
+        # API endpoints (rate limiting)
+        location /api/ {
+            limit_req zone=api burst=20 nodelay;
 
             proxy_pass http://fastapi_backend;
             proxy_set_header Host $host;

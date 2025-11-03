@@ -15,7 +15,7 @@ scrape_configs:
   # FastAPI Enterprise Application
   - job_name: 'fastapi-enterprise'
     static_configs:
-      - targets: ['host.docker.internal:8000']
+      - targets: ['web:8000']  # Changed from host.docker.internal to Docker service name
     metrics_path: /metrics
     scrape_interval: 15s
 

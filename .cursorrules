@@ -1,981 +1,309 @@
-# FastAPI Enterprise Application Cursor Rules
+# FastAPI Enterprise Application - Cursor Rules
 
 ## Project Overview
 
-This is an enterprise-grade FastAPI application implementing **Hexagonal Architecture** (Ports & Adapters) with **Domain-Driven Design** principles. The application provides manufacturing pricing calculations and cost management for custom parts, built with clean architecture patterns for maintainability, testability, and scalability.
+Enterprise-grade FastAPI application implementing **Hexagonal Architecture** (Ports & Adapters) with **Functional Core, Imperative Shell (FCIS)** pattern. Manufacturing pricing calculations and cost management for custom parts.
 
-## Architecture Principles
+## 🚨 CRITICAL: Standard Practices First
 
-### Core Architectural Patterns
+**ALWAYS follow standard, documented patterns.** If you need to deviate from:
+- Framework conventions (FastAPI, SQLAlchemy, Pydantic)
+- Architectural patterns (hexagonal architecture, FCIS)
+- Python standards (PEP 8, type hints)
+- Industry best practices (REST API, security)
 
-- **Hexagonal Architecture**: Core business logic is isolated from external concerns through ports (interfaces) and adapters (implementations)
-- **Functional Core, Imperative Shell (FCIS)**: Business logic should be pure functions without side effects, while all I/O operations happen in the imperative shell (adapters)
-- **Domain-Driven Design**: Business domains are modeled explicitly with ubiquitous language and clear boundaries
-- **Clean Architecture**: Dependencies point inward toward the domain layer
-- **Repository Pattern**: Data access is abstracted behind interfaces
-- **Event-Driven Design**: Domain events enable loose coupling between bounded contexts
-- **Multi-Database Strategy**: PostgreSQL for transactional data, MongoDB for analytics, Redis for caching
+**Stop and check with the project owner first. Do not reinvent the wheel.**
 
-### Functional Core, Imperative Shell Integration
+## Quick Reference
 
-The FCIS pattern works seamlessly with hexagonal architecture:
-
-- **Functional Core** = Domain Layer (pure business logic, no side effects)
-- **Imperative Shell** = Infrastructure Layer (adapters that handle I/O, database calls, external APIs)
-- **Ports** = Interfaces that allow the functional core to request side effects without performing them
-- **Application Layer** = Orchestrates the functional core and coordinates side effects through the imperative shell
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                 Imperative Shell                        │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │
-│  │   HTTP      │  │  Database   │  │  External   │     │
-│  │  Adapters   │  │  Adapters   │  │    APIs     │     │
-│  └─────────────┘  └─────────────┘  └─────────────┘     │
-│         │                │                │            │
-│         └────────────────┼────────────────┘            │
-│                          │                             │
-│  ┌─────────────────────────────────────────────────────┐ │
-│  │              Functional Core                       │ │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │ │
-│  │  │   Domain    │  │   Business  │  │    Ports    │ │ │
-│  │  │   Models    │  │    Logic    │  │(Interfaces) │ │ │
-│  │  └─────────────┘  └─────────────┘  └─────────────┘ │ │
-│  └─────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
-```
-
-## ⚠️ CRITICAL: Standard Practices Requirement
-
-**Any features implemented must ALWAYS follow standard and established documented patterns.** If you have any plans to deviate from documented standards, frameworks conventions, or established patterns, you MUST stop and check with the project owner first. This includes:
-
-- Framework conventions (FastAPI, SQLAlchemy, Pydantic, etc.)
-- Architectural patterns (hexagonal architecture, repository pattern, etc.)
-- Python standards (PEP 8, type hints, etc.)
-- Industry best practices (REST API design, security patterns, etc.)
-- Project-specific patterns defined in this file
-
-**Do not implement custom solutions when standard ones exist. Do not reinvent the wheel. When in doubt, ask first.**
-
-## Code Style and Standards
-
-### Python Standards
-
-- Use Python 3.13+ features and type hints
-- Follow PEP 8 with Black formatting (line length: 88)
-- Use type annotations for all functions, classes, and variables
-- Prefer explicit over implicit
-- Use descriptive variable and function names
-- Add comprehensive docstrings to all public functions and classes
-
-### Import Organization
-
-- Standard library imports first
-- Third-party imports second
-- Local application imports last
-- Use absolute imports
-- Group imports with isort configuration
-
-### Error Handling
-
-- Use specific exception types, avoid bare except clauses
-- Create custom exceptions for domain-specific errors
-- Log errors with structured logging (structlog)
-- Never expose internal errors to API consumers
-
-### Documentation
-
-- Add docstrings to all public functions using Google style
-- Include type information in docstrings when helpful
-- Document complex business logic with inline comments
-- Keep comments up-to-date with code changes
-
-## Project Structure Rules
-
-### Module Organization
-
-The project follows hexagonal architecture with clear layer separation:
+### Project Structure (Hexagonal Architecture)
 
 ```
 app/
-├── __init__.py
-├── main.py                     # FastAPI application entry point
-├── api/                        # Interface Layer (Controllers & Routes)
-│   ├── __init__.py
-│   ├── dependencies.py         # FastAPI dependency injection setup
-│   ├── middleware.py           # HTTP middleware (logging, CORS, etc.)
-│   ├── errors.py               # Global error handlers
-│   └── v1/                     # API version 1
-│       ├── __init__.py
-│       ├── health.py           # Health check endpoints
-│       └── pricing.py          # Pricing calculation endpoints
-├── core/                       # Application Layer (Use Cases & Config)
-│   ├── __init__.py
-│   ├── exceptions.py           # Application-level exceptions
-│   ├── config/                 # Configuration management
-│   │   ├── __init__.py
-│   │   ├── settings.py         # Pydantic settings and environment management
-│   │   └── database.py         # Database connection configuration
-│   └── security/               # Authentication and authorization
-│       ├── __init__.py
-│       ├── auth.py             # JWT token handling and validation
-│       └── permissions.py      # Role-based access control
-├── domains/                    # Domain Layer (Business Logic)
-│   ├── __init__.py
-│   ├── shared/                 # Shared domain concepts
-│   │   ├── __init__.py
-│   │   ├── base.py             # Base domain classes and interfaces
-│   │   └── value_objects.py    # Common value objects (Money, Dimensions, etc.)
-│   ├── pricing/                # Pricing domain
-│   │   ├── __init__.py
-│   │   ├── models.py           # Domain entities and value objects
-│   │   ├── services.py         # Domain services and business logic
-│   │   ├── repositories.py     # Repository interfaces (ports)
-│   │   ├── exceptions.py       # Domain-specific exceptions
-│   │   └── events.py           # Domain events (optional)
-│   └── cost/                   # Cost calculation domain
-│       ├── __init__.py
-│       ├── models.py           # Cost-related domain models
-│       ├── services.py         # Cost calculation business logic
-│       ├── repositories.py     # Cost repository interfaces
-│       ├── exceptions.py       # Cost-specific exceptions
-│       └── events.py           # Cost-related domain events
-└── infrastructure/             # Infrastructure Layer (External Adapters)
-    ├── __init__.py
-    ├── database/               # Database adapters and implementations
-    │   ├── __init__.py
-    │   ├── postgres/           # PostgreSQL adapter
-    │   │   ├── __init__.py
-    │   │   ├── connection.py   # PostgreSQL connection management
-    │   │   ├── models.py       # SQLAlchemy ORM models
-    │   │   └── repositories/   # Repository implementations
-    │   │       ├── __init__.py
-    │   │       ├── pricing.py  # Pricing repository implementation
-    │   │       └── cost.py     # Cost repository implementation
-    │   ├── mongodb/            # MongoDB adapter
-    │   │   ├── __init__.py
-    │   │   ├── connection.py   # MongoDB connection management
-    │   │   ├── models.py       # Beanie ODM models
-    │   │   └── repositories/   # MongoDB repository implementations
-    │   │       ├── __init__.py
-    │   │       └── analytics.py # Analytics repository implementation
-    │   └── redis/              # Redis adapter
-    │       ├── __init__.py
-    │       ├── connection.py   # Redis connection management
-    │       └── cache.py        # Caching service implementation
-    ├── external/               # External service adapters
-    │   ├── __init__.py
-    │   ├── material_api.py     # Material data service adapter
-    │   └── shipping_api.py     # Shipping calculation service adapter
-    └── tasks/                  # Background task implementations
-        ├── __init__.py
-        ├── celery_app.py       # Celery configuration and setup
-        ├── pricing_tasks.py    # Pricing-related background tasks
-        └── notification_tasks.py # Notification background tasks
+├── adapter/                    # Adapters (Imperative Shell)
+│   ├── inbound/               # Primary adapters (driving)
+│   │   └── web/               # HTTP/REST API layer
+│   │       ├── pricing.py     # FastAPI routes/controllers
+│   │       ├── schemas.py     # Request/response DTOs
+│   │       ├── dependencies.py # Dependency injection
+│   │       └── metrics_middleware.py # HTTP middleware
+│   └── outbound/              # Secondary adapters (driven)
+│       ├── persistence/       # Database adapters
+│       │   ├── cost_data_adapter.py
+│       │   └── pricing_config_adapter.py
+│       └── telemetry/         # Metrics/observability adapters
+│           ├── metrics_adapter.py
+│           └── golden4_metrics_adapter.py
+├── core/                      # Application Core
+│   ├── domain/               # Domain Layer (Functional Core)
+│   │   ├── pricing/          # Pricing domain with subdomains
+│   │   │   ├── models.py     # Base pricing models
+│   │   │   ├── calculations.py # Base calculations
+│   │   │   ├── tier/         # Tier subdomain
+│   │   │   │   ├── models.py     # PricingTier, TierPricing
+│   │   │   │   └── calculations.py # Tier pricing logic
+│   │   │   ├── discount/     # Discount subdomain
+│   │   │   │   └── calculations.py # Volume & final discounts
+│   │   │   └── margin/       # Margin subdomain
+│   │   │       └── calculations.py # Margin calculations
+│   │   └── cost/
+│   │       ├── models.py
+│   │       └── calculations.py
+│   ├── application/          # Application Layer (Orchestration)
+│   │   └── pricing/
+│   │       └── use_cases.py  # Coordinates functional core + adapters
+│   ├── port/                 # Ports (Interfaces)
+│   │   ├── inbound/          # Use case interfaces
+│   │   └── outbound/         # Repository/service interfaces
+│   │       ├── cost_ports.py
+│   │       ├── pricing_ports.py
+│   │       └── metrics_ports.py
+│   ├── config.py             # Application configuration
+│   ├── database.py           # Database connection management
+│   └── telemetry.py          # OpenTelemetry setup
+└── main.py                   # FastAPI application entry point
 ```
 
-### Layer Dependencies
+### Dependency Flow (Dependencies Point Inward)
 
-**Dependency Flow** (dependencies point inward):
 ```
-Interface Layer (API) → Application Layer (Core) → Domain Layer
-                    ↗                          ↗
-Infrastructure Layer ──────────────────────────┘
+Inbound Adapters (Web) → Application (Use Cases) → Domain (Pure Logic)
+                      ↗                        ↗
+Outbound Adapters (DB/Metrics) ────────────────┘
 ```
 
-**Rules**:
-- Domain layer has no external dependencies (pure business logic)
-- Application layer depends only on domain layer
-- Interface layer can depend on application and domain layers
-- Infrastructure layer implements domain interfaces but doesn't depend on other layers
+**Rules:**
+- Domain layer: NO external dependencies (pure functions)
+- Application layer: Depends only on domain + port interfaces
+- Adapters: Implement ports but don't depend on other layers
+- Web layer: Depends on application + domain
 
-### File Naming
+## Architecture Patterns
 
-- Use snake_case for all Python files and directories
-- Use descriptive names that indicate the file's purpose
-- Keep filenames concise but clear
+### 1. Functional Core, Imperative Shell (FCIS)
 
-## Domain-Driven Design Patterns
-
-### Domain Models
-
-**Entities**: Objects with identity and lifecycle
+**Functional Core (Domain)**: Pure functions, no side effects
 ```python
-class PricingCalculation:
-    """Pricing calculation aggregate root"""
+# app/core/domain/pricing/calculations.py
+def calculate_material_cost(
+    volume_cm3: float,
+    material_density: float,
+    material_cost_per_kg: Decimal,
+    quantity: int
+) -> Decimal:
+    """Pure function - no I/O, no side effects"""
+    volume_m3 = volume_cm3 / 1_000_000
+    weight_kg = volume_m3 * material_density
+    return material_cost_per_kg * Decimal(str(weight_kg)) * quantity
+```
 
-    def __init__(self, specification: PartSpecification):
-        self.id = UUID4()
-        self.specification = specification
-        self.created_at = datetime.utcnow()
-        self._result: Optional[PricingResult] = None
-
-    def calculate_pricing(self, cost_service: CostService) -> PricingResult:
-        """Business logic method on the entity"""
-        # Domain logic here
+**Imperative Shell (Adapters)**: All I/O and side effects
+```python
+# app/adapter/outbound/persistence/cost_data_adapter.py
+class PostgresCostDataAdapter(CostDataPort):
+    """Handles all database I/O"""
+    async def get_material_costs(self) -> Dict[str, Decimal]:
+        # Database queries happen here
         pass
 ```
 
-**Value Objects**: Immutable objects representing domain concepts
+**Application Layer (Orchestration)**: Coordinates both
 ```python
-@dataclass(frozen=True)
-class Money:
-    amount: Decimal
-    currency: str = "USD"
+# app/core/application/pricing/use_cases.py
+class CalculatePricingUseCase:
+    async def execute(self, request: PricingRequest) -> PricingResult:
+        # 1. Get data (imperative shell)
+        material_costs = await self._cost_port.get_material_costs()
 
-    def add(self, other: "Money") -> "Money":
-        if self.currency != other.currency:
-            raise ValueError("Cannot add different currencies")
-        return Money(self.amount + other.amount, self.currency)
-```
+        # 2. Pure calculation (functional core)
+        result = calculate_material_cost(...)
 
-**Domain Services (Functional Core)**: Pure functions with no side effects
-```python
-class PricingService:
-    """Domain service for pricing calculations - FUNCTIONAL CORE"""
-
-    def calculate_pricing(
-        self,
-        specification: PartSpecification,
-        material_costs: Dict[str, Decimal],
-        labor_rates: Dict[str, Decimal]
-    ) -> PricingResult:
-        """
-        Pure function - calculates pricing without side effects.
-        All required data is passed in as parameters.
-        """
-        # Pure calculation logic - no I/O, no database calls, no side effects
-        material_cost = self._calculate_material_cost(specification, material_costs)
-        labor_cost = self._calculate_labor_cost(specification, labor_rates)
-        # ... more pure calculations
-        return PricingResult(specification, material_cost, labor_cost)
-
-    def _calculate_material_cost(
-        self,
-        specification: PartSpecification,
-        material_costs: Dict[str, Decimal]
-    ) -> Money:
-        """Pure function - no side effects"""
-        unit_cost = material_costs[specification.material.value]
-        volume_kg = specification.volume_cm3 * MATERIAL_DENSITY[specification.material]
-        return Money(unit_cost * volume_kg * specification.quantity)
-```
-
-**Application Services (Orchestration Layer)**: Coordinates functional core with imperative shell
-```python
-class PricingUseCase:
-    """Application service - coordinates functional core with imperative shell"""
-
-    def __init__(
-        self,
-        pricing_service: PricingService,  # Functional core
-        material_repository: MaterialRepository,  # Imperative shell
-        pricing_repository: PricingRepository,  # Imperative shell
-        cache: RedisCache  # Imperative shell
-    ):
-        self._pricing_service = pricing_service  # Pure business logic
-        self._material_repository = material_repository  # Side effects
-        self._pricing_repository = pricing_repository  # Side effects
-        self._cache = cache  # Side effects
-
-    async def calculate_pricing(self, specification: PartSpecification) -> PricingResult:
-        """
-        Orchestrates the functional core with imperative shell:
-        1. Gather all data needed (imperative shell)
-        2. Call pure business logic (functional core)
-        3. Persist results (imperative shell)
-        """
-        # IMPERATIVE SHELL: Gather data
-        material_costs = await self._material_repository.get_current_costs()
-        labor_rates = await self._material_repository.get_labor_rates()
-
-        # FUNCTIONAL CORE: Pure calculation
-        result = self._pricing_service.calculate_pricing(
-            specification, material_costs, labor_rates
-        )
-
-        # IMPERATIVE SHELL: Persist results
-        await self._pricing_repository.save_calculation(result)
-        await self._cache.set(f"pricing:{result.id}", result, ttl=3600)
-
+        # 3. Persist (imperative shell)
+        await self._metrics_port.record_calculation(result)
         return result
 ```
 
-### Repository Pattern
+### 2. Key Principles
 
-**Abstract Repository (Port)**:
-```python
-from abc import ABC, abstractmethod
+**Functional Core (Domain Layer):**
+- ✅ Pure functions that return same output for same input
+- ✅ All data passed as parameters
+- ✅ Immutable data structures
+- ❌ NO I/O operations (database, HTTP, file system)
+- ❌ NO global state or side effects
+- ❌ NO logging or datetime.now() calls
 
-class PricingRepository(ABC):
-    """Repository interface for pricing calculations"""
+**Imperative Shell (Adapters):**
+- ✅ All I/O operations (database, HTTP, cache)
+- ✅ Transaction management
+- ✅ Convert between domain and external formats
+- ❌ NO business logic
+- ❌ NO business decisions
 
-    @abstractmethod
-    async def save_calculation(self, calculation: PricingCalculation) -> None:
-        """Save pricing calculation"""
-        pass
+**Application Layer (Use Cases):**
+- ✅ Orchestrate functional core + imperative shell
+- ✅ Gather data → call pure functions → persist results
+- ❌ NO business logic (delegate to domain)
+- ❌ NO direct I/O (delegate to adapters)
 
-    @abstractmethod
-    async def find_by_id(self, calculation_id: UUID) -> Optional[PricingCalculation]:
-        """Find calculation by ID"""
-        pass
+## Development Workflow
+
+### Common Commands
+
+```bash
+make install        # Install dependencies with uv
+make start-dev      # Run development server
+make test           # Run all tests
+make test-unit      # Fast tests (pure functions)
+make format         # Format code
+make lint           # Check code quality
+make check-all      # Run all checks
+make db-upgrade     # Run migrations
 ```
 
-**Concrete Repository (Adapter)**:
+### Adding a New Feature
+
+1. **Domain Layer**: Write pure functions (no mocks needed for tests!)
+2. **Port Interfaces**: Define interfaces in `core/port/outbound/`
+3. **Adapters**: Implement interfaces in `adapter/outbound/`
+4. **Use Cases**: Orchestrate in `core/application/`
+5. **Web Layer**: Add routes in `adapter/inbound/web/`
+
+See [docs/development/adding-features.md](docs/development/adding-features.md) for detailed guide.
+
+## Code Standards
+
+### Python Standards
+- Python 3.11+ with type hints everywhere
+- Black formatting (line length: 88)
+- Use `uv` for package management
+- Pydantic for validation
+- Async/await where needed (not in pure domain logic)
+
+### Testing Strategy
+- **Domain tests**: Test pure functions directly (no mocks!)
+- **Integration tests**: Test adapters with real dependencies
+- **Application tests**: Mock adapters, use real domain logic
+- **API tests**: Mock use cases, test HTTP concerns
+
 ```python
-class PostgresPricingRepository(PricingRepository):
-    """PostgreSQL implementation of pricing repository"""
+# ✅ Domain test - no mocks needed
+def test_calculate_material_cost():
+    result = calculate_material_cost(1000.0, 2.7, Decimal("10.50"), 100)
+    assert result == Decimal("2835.00")
 
-    def __init__(self, session_factory: async_sessionmaker):
-        self._session_factory = session_factory
+# ✅ Use case test - mock adapters, real domain logic
+async def test_pricing_use_case():
+    mock_cost_port = Mock(spec=CostDataPort)
+    mock_cost_port.get_material_costs.return_value = {"aluminum": Decimal("10.50")}
 
-    async def save_calculation(self, calculation: PricingCalculation) -> None:
-        async with self._session_factory() as session:
-            db_calculation = PricingCalculationORM.from_domain(calculation)
-            session.add(db_calculation)
-            await session.commit()
+    use_case = CalculatePricingUseCase(mock_cost_port)
+    result = await use_case.execute(request)
+
+    assert result.total_cost > 0
+    mock_cost_port.get_material_costs.assert_called_once()
 ```
 
-### Service Layer (Application Services)
-
-**Application Services** coordinate domain services and handle use cases:
-```python
-class PricingUseCase:
-    """Application service for pricing use cases"""
-
-    def __init__(
-        self,
-        pricing_service: PricingService,
-        inventory_service: InventoryService,
-        repository: PricingRepository
-    ):
-        self._pricing_service = pricing_service
-        self._inventory_service = inventory_service
-        self._repository = repository
-
-    async def calculate_pricing_with_availability(
-        self, specification: PartSpecification
-    ) -> PricingResult:
-        """Use case: Calculate pricing with material availability check"""
-        # 1. Check material availability
-        await self._inventory_service.check_availability(specification.material)
-
-        # 2. Calculate pricing
-        result = await self._pricing_service.calculate_pricing(specification)
-
-        # 3. Save for analytics
-        await self._repository.save_calculation(result)
-
-        return result
+### Before Committing
+```bash
+make check-all      # Format, lint, type-check
+make test           # All tests
 ```
 
-### FastAPI Interface Layer
+## Stack
 
-**Controllers** handle HTTP concerns and delegate to application services:
+- **Package Manager**: [uv](https://github.com/astral-sh/uv)
+- **Framework**: [FastAPI](https://fastapi.tiangolo.com/)
+- **Databases**: PostgreSQL, MongoDB, Redis
+- **ORM**: SQLAlchemy (async), Beanie (MongoDB)
+- **Validation**: Pydantic v2
+- **Testing**: pytest
+- **Observability**: OpenTelemetry, Prometheus, Grafana
+- **Background**: Celery
+- **Migrations**: Alembic
+
+## Documentation
+
+For detailed information:
+- [Architecture Overview](docs/architecture/README.md) - Hexagonal architecture deep dive
+- [Folder Structure](docs/architecture/folder-structure.md) - Detailed file organization
+- [Development Guide](docs/development/README.md) - Feature development workflow
+- [Operations Guide](docs/operations/README.md) - Deployment & monitoring
+- [Golden 4 Metrics](docs/operations/golden4-metrics.md) - Observability metrics
+
+## Common Anti-Patterns to Avoid
+
+### General
+- ❌ Business logic in route handlers
+- ❌ Database models imported in domain layer
+- ❌ Global variables for state
+- ❌ Missing type annotations
+- ❌ Exposing internal exceptions to API
+
+### FCIS-Specific
+- ❌ Side effects in domain functions
+- ❌ Database calls from domain layer
+- ❌ Using datetime.now() in pure functions
+- ❌ Logging in functional core
+- ❌ Mocking pure functions in tests
+
+### Testing
+- ❌ Mocking pure functions (test them directly!)
+- ❌ Testing pure domain logic with integration tests
+- ❌ Testing adapters and domain together in unit tests
+
+## Quick Examples
+
+### FastAPI Route (Inbound Adapter)
 ```python
 @router.post("/pricing", response_model=PricingResponse)
 async def calculate_pricing(
     request: PricingRequest,
-    pricing_use_case: PricingUseCase = Depends(get_pricing_use_case),
-    current_user: User = Depends(get_current_user)
+    use_case: CalculatePricingUseCase = Depends(get_pricing_use_case),
 ) -> PricingResponse:
-    """Calculate pricing for part specification"""
     try:
-        # Convert DTO to domain object
-        specification = PartSpecification.from_request(request)
-
-        # Execute use case
-        result = await pricing_use_case.calculate_pricing_with_availability(specification)
-
-        # Convert domain object to DTO
+        result = await use_case.execute(request)
         return PricingResponse.from_domain(result)
-
-    except MaterialNotAvailableError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ValidationError as e:
-        raise HTTPException(status_code=422, detail=str(e))
-```
-
-### Error Handling in Routes
-
-```python
-try:
-    result = await service.create_user(user_data, repository)
-    return result
-except UserAlreadyExistsError as e:
-    raise HTTPException(status_code=400, detail=str(e))
-except ValidationError as e:
-    raise HTTPException(status_code=422, detail=str(e))
-```
-
-## Multi-Database Architecture
-
-### PostgreSQL (Transactional Data)
-
-**Use for**: Users, pricing calculations, orders, financial data
-```python
-# SQLAlchemy async models
-class PricingCalculationORM(Base):
-    __tablename__ = "pricing_calculations"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    customer_id = Column(UUID(as_uuid=True), ForeignKey("customers.id"))
-    material = Column(String(100), nullable=False)
-    quantity = Column(Integer, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-
-    # Convert between domain and ORM models
-    @classmethod
-    def from_domain(cls, calculation: PricingCalculation) -> "PricingCalculationORM":
-        return cls(
-            id=calculation.id,
-            customer_id=calculation.customer_id,
-            material=calculation.specification.material.value,
-            # ... other fields
-        )
-
-    def to_domain(self) -> PricingCalculation:
-        # Reconstruct domain object from ORM
-        pass
-```
-
-**Connection Management**:
-```python
-# Async PostgreSQL connection
-engine = create_async_engine(
-    settings.postgres_url,
-    poolclass=QueuePool,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True
-)
-```
-
-### MongoDB (Analytics & Document Storage)
-
-**Use for**: Analytics, logs, flexible document storage
-```python
-# Beanie document models
-class PricingAnalytics(Document):
-    calculation_id: str
-    customer_id: str
-    timestamp: datetime
-    pricing_data: Dict[str, Any]
-    performance_metrics: Dict[str, float]
-
-    class Settings:
-        collection = "pricing_analytics"
-        indexes = [
-            "customer_id",
-            "timestamp",
-            [("customer_id", 1), ("timestamp", -1)]
-        ]
-```
-
-### Redis (Caching & Sessions)
-
-**Use for**: Application cache, session storage, rate limiting
-```python
-# Redis caching service
-class RedisCache:
-    async def get_or_set(
-        self,
-        key: str,
-        factory_func: Callable[[], Awaitable[Any]],
-        ttl: int = 3600
-    ) -> Any:
-        cached = await self.get(key)
-        if cached is not None:
-            return cached
-
-        value = await factory_func()
-        await self.set(key, value, ttl)
-        return value
-```
-
-### Repository Implementation Patterns
-
-**Multi-database repository**:
-```python
-class PricingRepository:
-    def __init__(
-        self,
-        postgres_session: AsyncSession,
-        mongo_analytics: AnalyticsRepository,
-        cache: RedisCache
-    ):
-        self._postgres = postgres_session
-        self._analytics = mongo_analytics
-        self._cache = cache
-
-    async def save_calculation(self, calculation: PricingCalculation) -> None:
-        # Save to PostgreSQL
-        orm_calc = PricingCalculationORM.from_domain(calculation)
-        self._postgres.add(orm_calc)
-        await self._postgres.commit()
-
-        # Save analytics to MongoDB
-        analytics_data = self._create_analytics_data(calculation)
-        await self._analytics.save_pricing_analytics(analytics_data)
-
-        # Invalidate cache
-        cache_key = f"recent_calculations:{calculation.customer_id}"
-        await self._cache.delete(cache_key)
-```
-
-## Testing Patterns with FCIS
-
-### Test Organization by Layer
-
-```
-tests/
-├── unit/                    # Fast, isolated tests
-│   ├── domains/            # Test functional core (pure functions)
-│   │   ├── test_pricing/
-│   │   │   ├── test_models.py      # Test domain models
-│   │   │   └── test_services.py    # Test pure business logic
-│   │   └── test_cost/
-│   └── core/               # Test application layer coordination
-├── integration/            # Test imperative shell adapters
-│   ├── test_repositories.py       # Test database adapters
-│   ├── test_external_apis.py      # Test external service adapters
-│   └── test_cache.py              # Test caching adapters
-├── api/                    # Test HTTP interface layer
-│   ├── test_health.py
-│   └── test_pricing.py
-└── contract/               # Test API contracts
-    ├── test_api_contracts.py
-    └── schemas.py
-```
-
-### FCIS Testing Principles
-
-**Functional Core (Domain) Tests**: Test pure functions directly, no mocks needed
-```python
-def test_pricing_calculation_with_valid_inputs():
-    """Test pure business logic without side effects"""
-    # Arrange: Prepare input data
-    specification = PartSpecification(
-        material=Material.ALUMINUM,
-        quantity=100,
-        dimensions=Dimensions(100, 50, 25),
-        geometric_complexity_score=2.5,
-        process=Process.CNC
-    )
-    material_costs = {"aluminum": Decimal("10.50")}
-    labor_rates = {"cnc": Decimal("75.00")}
-
-    # Act: Call pure function directly
-    pricing_service = PricingService()
-    result = pricing_service.calculate_pricing(
-        specification, material_costs, labor_rates
-    )
-
-    # Assert: Verify business logic
-    assert result.total_cost.amount > 0
-    assert result.material_cost.amount == Decimal("262.50")  # 100*50*25/1000 * 2.7 * 10.50
-    # No mocks needed - pure function!
-```
-
-**Imperative Shell Tests**: Test adapters with real external dependencies
-```python
-@pytest.mark.integration
-async def test_postgres_pricing_repository_saves_calculation():
-    """Test database adapter with real database"""
-    # Use real database connection for integration test
-    async with test_db_session() as session:
-        repository = PostgresPricingRepository(session)
-        calculation = create_test_calculation()
-
-        # Test the adapter
-        await repository.save_calculation(calculation)
-
-        # Verify persistence
-        saved = await repository.find_by_id(calculation.id)
-        assert saved is not None
-        assert saved.id == calculation.id
-```
-
-**Application Layer Tests**: Test orchestration with mocked imperative shell
-```python
-@pytest.mark.asyncio
-async def test_pricing_use_case_coordinates_functional_core_and_shell():
-    """Test application service orchestration"""
-    # Mock the imperative shell (repositories, external APIs)
-    mock_material_repo = Mock(spec=MaterialRepository)
-    mock_pricing_repo = Mock(spec=PricingRepository)
-    mock_cache = Mock(spec=RedisCache)
-
-    # Set up mock responses
-    mock_material_repo.get_current_costs.return_value = {"aluminum": Decimal("10.50")}
-    mock_material_repo.get_labor_rates.return_value = {"cnc": Decimal("75.00")}
-
-    # Real functional core (no mocking needed for pure functions)
-    pricing_service = PricingService()
-
-    # Test the application service
-    use_case = PricingUseCase(pricing_service, mock_material_repo, mock_pricing_repo, mock_cache)
-
-    specification = create_test_specification()
-    result = await use_case.calculate_pricing(specification)
-
-    # Verify orchestration
-    assert result is not None
-    mock_material_repo.get_current_costs.assert_called_once()
-    mock_pricing_repo.save_calculation.assert_called_once()
-    mock_cache.set.assert_called_once()
-```
-
-### Test Naming with FCIS
-
-```python
-# Functional core tests (pure functions)
-def test_calculate_pricing_returns_correct_total_for_aluminum_cnc():
-    pass
-
-def test_calculate_material_cost_applies_volume_discount_correctly():
-    pass
-
-# Imperative shell tests (adapters)
-def test_postgres_repository_persists_pricing_calculation():
-    pass
-
-def test_material_api_adapter_fetches_current_costs():
-    pass
-
-# Application layer tests (orchestration)
-def test_pricing_use_case_saves_calculation_after_successful_pricing():
-    pass
-
-def test_pricing_use_case_handles_material_not_available_error():
-    pass
-```
-
-### Mocking Strategy by Layer
-
-**Functional Core**: No mocks needed (test pure functions directly)
-**Imperative Shell**: Use real external dependencies in integration tests
-**Application Layer**: Mock imperative shell, use real functional core
-**Interface Layer**: Mock application services, test HTTP concerns
-
-### Test Data and Fixtures
-
-```python
-# Pure test data (no mocks needed for functional core)
-@pytest.fixture
-def aluminum_specification():
-    return PartSpecification(
-        material=Material.ALUMINUM,
-        quantity=100,
-        dimensions=Dimensions(100, 50, 25),
-        geometric_complexity_score=2.5,
-        process=Process.CNC
-    )
-
-@pytest.fixture
-def material_costs():
-    return {
-        "aluminum": Decimal("10.50"),
-        "steel": Decimal("8.25"),
-        "titanium": Decimal("45.00")
-    }
-
-# Database fixtures for imperative shell tests
-@pytest.fixture
-async def test_db_session():
-    # Provide real database session for integration tests
-    pass
-```
-
-## FastAPI Specific Rules
-
-### Dependency Injection
-
-- Use FastAPI's Depends for dependency injection
-- Create dependency provider functions in `dependencies.py`
-- Use dependency overrides in tests
-- Keep dependencies focused and single-purpose
-
-### Pydantic Models
-
-- Create separate models for requests and responses
-- Use Field for validation and documentation
-- Implement custom validators when needed
-- Keep models focused on data validation
-
-### Route Organization
-
-```python
-@router.post("/users", response_model=UserResponse)
-async def create_user(
-    user_data: UserCreate,
-    user_service: UserService = Depends(get_user_service)
-) -> UserResponse:
-    """
-    Create a new user account.
-
-    Args:
-        user_data: User creation data
-        user_service: Injected user service
-
-    Returns:
-        Created user data
-
-    Raises:
-        HTTPException: 400 if user already exists
-        HTTPException: 422 if validation fails
-    """
-    try:
-        user = await user_service.create_user(user_data)
-        return UserResponse.from_domain(user)
-    except UserAlreadyExistsError as e:
+    except DomainError as e:
         raise HTTPException(status_code=400, detail=str(e))
 ```
 
-## Configuration and Environment
-
-### Settings Management
-
-- Use Pydantic Settings for configuration
-- Load from environment variables
-- Provide sensible defaults
-- Validate configuration on startup
-- Separate settings by environment (dev, staging, prod)
-
-### Environment Variables
-
-- Use descriptive names with consistent prefixes
-- Document all environment variables
-- Use type annotations in settings classes
-- Keep secrets separate from regular config
-
-## Security Guidelines
-
-### Authentication and Authorization
-
-- Use JWT tokens for stateless authentication
-- Implement proper password hashing with bcrypt
-- Validate all inputs with Pydantic
-- Use HTTPS in production
-- Implement rate limiting
-
-### Data Protection
-
-- Never log sensitive data (passwords, tokens)
-- Use structured logging for audit trails
-- Implement proper session management
-- Validate and sanitize all inputs
-
-## Performance Guidelines
-
-### Database Optimization
-
-- Use connection pooling
-- Implement proper indexing
-- Use pagination for large datasets
-- Consider caching for frequently accessed data
-- Use async operations where beneficial
-
-### Caching Strategy
-
-- Cache expensive database queries
-- Use Redis for distributed caching
-- Implement cache invalidation strategies
-- Monitor cache hit rates
-
-## Development Workflow
-
-### Before Committing
-
-- Run `make lint` to check code style
-- Run `make type-check` for type validation
-- Run `make test` to ensure all tests pass
-- Update documentation if needed
-
-### Code Review Guidelines
-
-- Review for architectural compliance
-- Check test coverage for new code
-- Validate error handling
-- Ensure documentation is complete
-- Verify security considerations
-
-## Debugging and Logging
-
-### Structured Logging
-
+### Port Interface
 ```python
-import structlog
-
-logger = structlog.get_logger()
-
-logger.info(
-    "User created successfully",
-    user_id=user.id,
-    email=user.email,
-    timestamp=datetime.utcnow()
-)
+class CostDataPort(Protocol):
+    """Port for cost data access"""
+    async def get_material_costs(self) -> Dict[str, Decimal]: ...
 ```
 
-### Error Logging
-
-- Log errors with context
-- Include request IDs for tracing
-- Use appropriate log levels
-- Never log sensitive information
-
-## Common Patterns to Follow
-
-### Domain Model Creation
-
+### Pure Domain Function
 ```python
-from typing import Protocol
-from pydantic import BaseModel
-
-class User(BaseModel):
-    """Domain model for User entity."""
-    id: int
-    email: str
-    is_active: bool
-
-class UserRepository(Protocol):
-    """Port for user data access."""
-
-    async def create(self, user_data: UserCreate) -> User:
-        """Create a new user."""
-        ...
-
-    async def get_by_id(self, user_id: int) -> User | None:
-        """Get user by ID."""
-        ...
-```
-
-### Service Implementation
-
-```python
-class UserService:
-    """Business logic for user operations."""
-
-    def __init__(self, user_repo: UserRepository):
-        self.user_repo = user_repo
-
-    async def create_user(self, user_data: UserCreate) -> User:
-        """
-        Create a new user with business validation.
-
-        Args:
-            user_data: User creation data
-
-        Returns:
-            Created user
-
-        Raises:
-            UserAlreadyExistsError: If user with email already exists
-        """
-        # Check if user already exists
-        existing_user = await self.user_repo.get_by_email(user_data.email)
-        if existing_user:
-            raise UserAlreadyExistsError(f"User with email {user_data.email} already exists")
-
-        # Create new user
-        return await self.user_repo.create(user_data)
-```
-
-## FCIS Pattern Rules
-
-### Functional Core Rules (Domain Layer)
-
-**✅ DO:**
-- Write pure functions that always return the same output for the same input
-- Pass all required data as function parameters
-- Make all dependencies explicit in function signatures
-- Use immutable data structures (dataclasses with frozen=True)
-- Return new objects instead of modifying existing ones
-- Keep business logic testable without mocks
-
-**❌ DON'T:**
-- Perform I/O operations (database calls, HTTP requests, file system access)
-- Use global variables or shared mutable state
-- Call external services directly
-- Use random number generation or current time without passing as parameter
-- Modify input parameters
-- Use async/await in pure domain logic (unless purely computational)
-
-```python
-# ✅ GOOD: Pure function in functional core
 def calculate_pricing(
-    specification: PartSpecification,
-    material_costs: Dict[str, Decimal],
-    current_time: datetime  # Time passed as parameter, not accessed directly
+    volume_cm3: float,
+    material_cost_per_kg: Decimal,
+    labor_rate_per_hour: Decimal,
+    # All data passed as parameters
 ) -> PricingResult:
-    # Pure calculation logic
-    pass
-
-# ❌ BAD: Impure function with side effects
-async def calculate_pricing(specification: PartSpecification) -> PricingResult:
-    # DON'T: Direct database access from domain logic
-    material_costs = await database.get_material_costs()
-
-    # DON'T: Current time accessed directly
-    result.created_at = datetime.utcnow()
-
-    # DON'T: Logging in pure function
-    logger.info("Calculating pricing")
-
-    return result
+    # Pure calculation - no side effects
+    return PricingResult(...)
 ```
 
-### Imperative Shell Rules (Infrastructure Layer)
+## Environment Setup
 
-**✅ DO:**
-- Handle all I/O operations (database, HTTP, file system)
-- Manage transactions and error handling
-- Convert between domain objects and external representations
-- Gather all data needed by the functional core
-- Persist results after functional core calculations
+```bash
+# Clone and setup
+git clone <repo-url>
+cd fastapi_enterprise
+cp .env.example .env
 
-**❌ DON'T:**
-- Put business logic in adapters
-- Make business decisions in repository implementations
-- Leak infrastructure concerns into domain layer
+# One command setup
+make full-setup     # Starts services, installs deps, runs migrations
 
-### Application Layer Rules (Orchestration)
+# Start coding
+make start-dev
+```
 
-**✅ DO:**
-- Coordinate between functional core and imperative shell
-- Gather data, call pure functions, persist results
-- Handle cross-cutting concerns (logging, monitoring)
-- Convert exceptions between layers
+See [README.md](README.md) for complete quick start guide.
 
-**❌ DON'T:**
-- Duplicate business logic from functional core
-- Perform complex calculations (delegate to functional core)
-- Handle infrastructure details (delegate to imperative shell)
+---
 
-## Anti-Patterns to Avoid
-
-### General Anti-Patterns
-- Don't put business logic in route handlers
-- Don't import database models in domain services
-- Don't use global variables for state
-- Don't ignore error handling
-- Don't skip type annotations
-- Don't write untestable code
-- Don't expose internal exceptions to API consumers
-- Don't use print statements for logging
-
-### FCIS-Specific Anti-Patterns
-- Don't mix pure functions with side effects
-- Don't access external services from domain layer
-- Don't use async/await unnecessarily in pure functions
-- Don't modify input parameters in pure functions
-- Don't access current time directly in business logic
-- Don't perform logging in pure domain functions
-- Don't make database calls from domain services
-
-### Testing Anti-Patterns
-- Don't mock pure functions (test them directly)
-- Don't test imperative shell and functional core together in unit tests
-- Don't write integration tests for pure domain logic
-
-Remember: The goal is to write maintainable, testable, and scalable code that follows enterprise standards while adhering to functional core, imperative shell principles for maximum testability and reliability.
+**Remember**: Keep domain logic pure, push all side effects to adapters, orchestrate in use cases. This makes the codebase maintainable, testable, and reliable.

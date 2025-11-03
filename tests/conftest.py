@@ -3,32 +3,61 @@ Pytest configuration and shared fixtures.
 
 This module provides common fixtures and configuration for all tests,
 including database setup, test clients, and mock objects.
+
+Following pytest best practices:
+- Set environment variables BEFORE imports that depend on them
+- Use standard pytest fixtures and patterns
+- Isolate tests with proper setup/teardown
 """
 
 import asyncio
 import os
 from collections.abc import AsyncGenerator, Generator
-from uuid import uuid4
 
-import fakeredis.aioredis
-import httpx
-import pytest
-import pytest_asyncio
-from fastapi.testclient import TestClient
-from httpx import AsyncClient
-from mongomock_motor import AsyncMongoMockClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import StaticPool
+# CRITICAL: Set test environment variables BEFORE any app imports
+# This must happen before Settings() is instantiated during import
+os.environ["TESTING"] = "true"
+os.environ["DEBUG"] = "true"  # Enable debug for tests
+os.environ["ENVIRONMENT"] = "test"  # Set environment to test
 
-from app.core.database import Base, get_cache_client, get_db_session, get_mongo_client
-from app.main import app
-
-# Auth module has been removed from the application
-
-# Test database URLs
+# Test database URLs - use in-memory SQLite for tests (STANDARD pytest pattern)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 TEST_MONGO_URL = "mongodb://test_host"
 TEST_REDIS_URL = "redis://test_host"
+
+# Set database URLs before imports
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+os.environ["MONGODB_URL"] = TEST_MONGO_URL
+os.environ["REDIS_URL"] = TEST_REDIS_URL
+
+# Override production validation - use test password for tests
+os.environ["POSTGRES_PASSWORD"] = "test_password_not_production"
+
+# Imports must come after environment variables are set
+# noqa: E402 is required because environment variables must be set before imports
+import fakeredis.aioredis  # noqa: E402
+import httpx  # noqa: E402
+import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from httpx import AsyncClient  # noqa: E402
+from mongomock_motor import AsyncMongoMockClient  # noqa: E402
+from sqlalchemy.ext.asyncio import (  # noqa: E402
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
+from app.core.database import (  # noqa: E402
+    Base,
+    get_cache_client,
+    get_db_session,
+    get_mongo_client,
+)
+from app.main import app  # noqa: E402
+
+# Auth module has been removed from the application
 
 
 @pytest.fixture(scope="session")
@@ -224,68 +253,6 @@ def celery_app():
     return celery_app
 
 
-# Mock fixtures
-@pytest.fixture
-def mock_email_service(monkeypatch):
-    """
-    Mock email service for testing.
-
-    Prevents actual emails from being sent during tests.
-
-    Args:
-        monkeypatch: Pytest monkeypatch fixture
-    """
-    sent_emails = []
-
-    def mock_send_email(to: str, subject: str, body: str, **kwargs):
-        """Mock email sending function."""
-        sent_emails.append({"to": to, "subject": subject, "body": body, **kwargs})
-        return {"status": "sent", "message_id": str(uuid4())}
-
-    # Patch email sending function
-    monkeypatch.setattr("app.core.tasks.send_email", mock_send_email)
-
-    return sent_emails
-
-
-# Utility functions for tests
-def create_test_user_data(**overrides) -> dict:
-    """
-    Create test user data with optional overrides.
-
-    Args:
-        **overrides: Fields to override in the default user data
-
-    Returns:
-        Dictionary with user data for testing
-    """
-    default_data = {
-        "email": f"test_{uuid4().hex[:8]}@example.com",
-        "username": f"testuser_{uuid4().hex[:8]}",
-        "password": "testpassword123",
-        "full_name": "Test User",
-    }
-
-    default_data.update(overrides)
-    return default_data
-
-
-def assert_user_data_matches(user_dict: dict, expected_data: dict, exclude_fields=None):
-    """
-    Assert that user data matches expected values.
-
-    Args:
-        user_dict: User data dictionary to check
-        expected_data: Expected user data
-        exclude_fields: Fields to exclude from comparison
-    """
-    exclude_fields = exclude_fields or ["id", "created_at", "updated_at", "last_login"]
-
-    for field, expected_value in expected_data.items():
-        if field not in exclude_fields:
-            assert user_dict[field] == expected_value, f"Field {field} mismatch"
-
-
 # Pytest configuration
 def pytest_configure(config):
     """Configure pytest with custom markers."""
@@ -293,10 +260,3 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "integration: Integration tests")
     config.addinivalue_line("markers", "api: API tests")
     config.addinivalue_line("markers", "slow: Slow tests")
-
-
-# Set test environment
-os.environ["TESTING"] = "true"
-os.environ["DATABASE_URL"] = TEST_DATABASE_URL
-os.environ["MONGO_URL"] = TEST_MONGO_URL
-os.environ["REDIS_URL"] = TEST_REDIS_URL

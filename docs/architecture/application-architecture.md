@@ -44,10 +44,10 @@ The FastAPI Enterprise application follows **Hexagonal Architecture** (also know
 
 ### 3. Clean Architecture Layers
 
-1. **Domain Layer** (`app/domains/`): Pure business logic
+1. **Domain Layer** (`app/core/domain/`): Pure business logic
 2. **Application Layer** (`app/core/`): Use cases and application services
-3. **Infrastructure Layer** (`app/infrastructure/`): External concerns
-4. **Interface Layer** (`app/api/`): Web controllers and DTOs
+3. **Infrastructure Layer** (`app/adapter/outbound/`): External concerns
+4. **Interface Layer** (`app/adapter/inbound/web/`): Web controllers and DTOs
 
 ## Directory Structure Deep Dive
 
@@ -72,10 +72,8 @@ app/
 │   │   ├── __init__.py
 │   │   ├── settings.py         # Pydantic settings
 │   │   └── database.py         # Database configuration
-│   ├── security/               # Authentication & authorization
-│   │   ├── __init__.py
-│   │   ├── auth.py             # JWT handling
-│   │   └── permissions.py      # Authorization logic
+│   ├── security/               # Security utilities (NOT CURRENTLY USED)
+│   │   └── ...
 │   └── exceptions.py           # Domain exceptions
 ├── domains/                    # Domain Layer (Business Logic)
 │   ├── __init__.py
@@ -136,10 +134,10 @@ app/
 FastAPI's dependency injection system manages object creation and lifecycle:
 
 ```python
-# app/api/dependencies.py
+# app/adapter/inbound/web/dependencies.py
 from fastapi import Depends
-from app.domains.pricing.repositories import PricingRepository
-from app.infrastructure.database.postgres.repositories.pricing import PostgresPricingRepository
+from app.core.domain.pricing.repositories import PricingRepository
+from app.adapter.outbound.persistence.repositories.pricing import PostgresPricingRepository
 
 def get_pricing_repository() -> PricingRepository:
     return PostgresPricingRepository()
@@ -175,7 +173,7 @@ class PostgresPricingRepository(PricingRepository):
 Encapsulate complex business logic:
 
 ```python
-# app/domains/pricing/services.py
+# app/core/domain/pricing/services.py
 class PricingService:
     def __init__(self, cost_service: CostService, repository: PricingRepository):
         self._cost_service = cost_service
@@ -265,20 +263,19 @@ class DatabaseSettings(BaseSettings):
 
 ## Security Architecture
 
-### Authentication & Authorization
+### Security
 
-- **JWT tokens** for stateless authentication
-- **Role-based access control** (RBAC)
-- **API key authentication** for service-to-service
+- **Input Validation**: Pydantic models for all API requests
 - **Rate limiting** via Redis
+- **HTTPS enforcement** in production
+- **CORS configuration** for cross-origin requests
 
 ### Security Layers
 
 1. **Input Validation**: Pydantic models
-2. **Authentication**: JWT middleware
-3. **Authorization**: Permission decorators
-4. **Rate Limiting**: Redis-based throttling
-5. **Data Validation**: Domain model validation
+2. **Rate Limiting**: Redis-based throttling
+3. **Data Validation**: Domain model validation
+4. **HTTPS**: Encrypted connections in production
 
 ## Testing Architecture
 
@@ -308,10 +305,10 @@ class DatabaseSettings(BaseSettings):
 
 ```dockerfile
 # Multi-stage build for production
-FROM python:3.13-slim as builder
+FROM python:3.11-slim as builder
 # Build dependencies
 
-FROM python:3.13-slim as runtime
+FROM python:3.11-slim as runtime
 # Runtime dependencies and application
 ```
 
@@ -396,7 +393,7 @@ logger.info(
 
 ### Adding New Domains
 
-1. Create domain package in `app/domains/`
+1. Create domain package in `app/core/domain/`
 2. Define domain models and services
 3. Implement repository interfaces
 4. Add infrastructure adapters

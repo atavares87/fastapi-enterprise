@@ -1,0 +1,92 @@
+# Filebeat Configuration - STANDARD Elastic Stack setup
+# Reference: https://www.elastic.co/guide/en/beats/filebeat/current/filebeat-configuration.html
+
+filebeat.inputs:
+  # Collect logs from Docker containers (stdout)
+  - type: container
+    enabled: true
+    paths:
+      - '/var/lib/docker/containers/*/*.log'
+    processors:
+      - add_docker_metadata:
+          host: "unix:///var/run/docker.sock"
+
+  # Collect logs from application log files (if written to files)
+  - type: filestream
+    enabled: true
+    id: fastapi-logs
+    paths:
+      - '/app/logs/*.log'
+      - '/app/logs/*/*.log'
+    fields:
+      app: fastapi-enterprise
+      environment: ${DEPLOYMENT_ENVIRONMENT:-development}
+    fields_under_root: false
+    multiline.pattern: '^{'
+    multiline.negate: true
+    multiline.match: after
+    json.keys_under_root: true
+    json.add_error_key: true
+
+# Processors for log enrichment
+processors:
+  # Add Docker metadata (container name, labels, etc.)
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+
+  # Add host metadata
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+
+  # Parse JSON logs (if LOG_FORMAT=json)
+  - decode_json_fields:
+      fields: ["message"]
+      target: ""
+      overwrite_keys: true
+      add_error_key: true
+
+  # Add timestamp from log
+  - timestamp:
+      field: timestamp
+      layouts:
+        - '2006-01-02T15:04:05.000000Z'
+        - '2006-01-02T15:04:05Z'
+      test:
+        - '2024-01-15T10:30:00.123456Z'
+
+# Output to Elasticsearch (STANDARD)
+# Note: username/password only needed if xpack.security.enabled=true
+output.elasticsearch:
+  hosts: ["${ELASTICSEARCH_HOSTS:elasticsearch:9200}"]
+  # username and password removed - not needed when security is disabled
+  index: "fastapi-enterprise-logs-%{+yyyy.MM.dd}"
+  template.name: "fastapi-enterprise-logs"
+  template.pattern: "fastapi-enterprise-logs-*"
+  template.settings:
+    index.number_of_shards: 1
+    index.number_of_replicas: 0
+    index.codec: best_compression
+    index.mapping.total_fields.limit: 10000
+
+# Logging configuration for Filebeat itself
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+
+# Setup template for Elasticsearch (STANDARD)
+setup.template.enabled: true
+setup.template.name: "fastapi-enterprise-logs"
+setup.template.pattern: "fastapi-enterprise-logs-*"
+setup.template.settings:
+  index.number_of_shards: 1
+  index.number_of_replicas: 0
+  index.codec: best_compression
+
+# Enable ILM (Index Lifecycle Management) - STANDARD best practice
+setup.ilm.enabled: true
+setup.ilm.rollover_alias: "fastapi-enterprise-logs"
+setup.ilm.pattern: "{now/d}-000001"

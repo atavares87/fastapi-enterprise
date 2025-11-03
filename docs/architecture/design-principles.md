@@ -177,12 +177,12 @@ Infrastructure Layer (External Adapters)
 
 ```
 # Good: Package by feature
-app/domains/pricing/
+app/core/domain/pricing/
 ├── models.py      # Pricing entities and value objects
 ├── services.py    # Pricing business logic
 └── repositories.py # Pricing data access interfaces
 
-app/domains/cost/
+app/core/domain/cost/
 ├── models.py      # Cost entities and value objects
 ├── services.py    # Cost calculation logic
 └── repositories.py # Cost data access interfaces
@@ -481,7 +481,7 @@ class PostgresPricingRepository:
 
 ```python
 from functools import lru_cache
-from app.infrastructure.redis.cache import cache
+from app.adapter.outbound.cache.cache import cache
 
 class MaterialService:
     @cache(ttl=3600)  # Cache for 1 hour
@@ -529,7 +529,7 @@ class PricingController:
     async def calculate_pricing(
         self,
         request: PricingRequest,  # ← Pydantic validation
-        current_user: User = Depends(get_current_user),  # ← Authentication
+        # Business logic here
         _: None = Depends(rate_limiter),  # ← Rate limiting
     ):
         # Authorization check
@@ -571,7 +571,7 @@ PERMISSION_ROLE_MAPPING = {
 ```python
 class SecuritySettings(BaseSettings):
     # Secure defaults
-    jwt_expire_minutes: int = 15  # Short token lifetime
+    cache_ttl: int = 15  # Cache time-to-live in minutes
     max_requests_per_minute: int = 60  # Rate limiting
     require_https: bool = True  # Force HTTPS
     password_min_length: int = 12  # Strong passwords

@@ -6,6 +6,7 @@ async support and automatic model discovery.
 """
 
 import asyncio
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -14,8 +15,29 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
 
-# Import application components
-from app.core.config import get_settings
+# Set default environment variables for migrations if not already set
+# This prevents validation errors when running migrations locally
+# CRITICAL: Set these BEFORE importing Settings to avoid production validation errors
+if "ENVIRONMENT" not in os.environ:
+    os.environ["ENVIRONMENT"] = os.getenv("ENVIRONMENT", "development")
+if "DEPLOYMENT_ENVIRONMENT" not in os.environ:
+    os.environ["DEPLOYMENT_ENVIRONMENT"] = os.getenv(
+        "DEPLOYMENT_ENVIRONMENT", "development"
+    )
+if "DEBUG" not in os.environ:
+    os.environ["DEBUG"] = os.getenv(
+        "DEBUG", "true"
+    )  # Default to debug mode for migrations
+if "TESTING" not in os.environ:
+    os.environ["TESTING"] = os.getenv("TESTING", "false")
+# Only set POSTGRES_PASSWORD if not already set, and only if we're not in production
+if "POSTGRES_PASSWORD" not in os.environ:
+    env = os.getenv("ENVIRONMENT", "development")
+    if env != "production":
+        os.environ["POSTGRES_PASSWORD"] = "postgres"  # Safe default for non-production
+
+# Import application components (must come after environment variables are set)
+from app.core.config import get_settings  # noqa: E402
 
 settings = get_settings()
 from app.core.database import Base  # noqa

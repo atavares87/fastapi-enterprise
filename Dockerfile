@@ -2,7 +2,7 @@
 # Multi-stage build for optimized production image
 
 # Build stage - install dependencies and build application
-FROM python:3.13-slim AS builder
+FROM python:3.11-slim AS builder
 
 # Set environment variables for build
 ENV PYTHONUNBUFFERED=1 \
@@ -30,7 +30,7 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev
 
 # Production stage - create minimal runtime image
-FROM python:3.13-slim AS production
+FROM python:3.11-slim AS production
 
 # Set environment variables for production
 ENV PYTHONUNBUFFERED=1 \

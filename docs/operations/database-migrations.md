@@ -84,8 +84,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 
 # Import your SQLAlchemy models
-from app.infrastructure.database.postgres.models import Base
-from app.core.config.settings import settings
+from app.adapter.outbound.persistence.models import Base
+from app.core.config import settings
 
 # Alembic Config object
 config = context.config

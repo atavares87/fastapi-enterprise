@@ -9,7 +9,7 @@ and automatic validation.
 import secrets
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -44,24 +44,29 @@ class Settings(BaseSettings):
     PORT: int = 8000  # HTTP server port
     RELOAD: bool = True  # Auto-reload on code changes (development only)
 
-    # Security Settings - JWT tokens and authentication
+    # Security Settings
     SECRET_KEY: str = Field(
         default_factory=lambda: secrets.token_urlsafe(32)
-    )  # Auto-generated if not set
-    ALGORITHM: str = "HS256"  # JWT signing algorithm
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # Short-lived tokens for API access
-    REFRESH_TOKEN_EXPIRE_MINUTES: int = 10080  # Long-lived tokens (7 days) for renewal
+    )  # Auto-generated if not set - used for password hashing and session management
 
     # Database Settings - PostgreSQL (primary data store)
     POSTGRES_SERVER: str = "localhost"  # PostgreSQL hostname
     POSTGRES_USER: str = "postgres"  # Database username
     POSTGRES_PASSWORD: str = (
-        "postgres"  # Database password (use env var in production!)
+        "postgres"  # Database password (dev default, MUST be set in production!)
     )
     POSTGRES_DB: str = "fastapi_enterprise"  # Database name
     POSTGRES_PORT: int = 5432  # Port 5432 for local install, 5433 for Docker Compose
     DATABASE_URL: str | None = (
         None  # Complete URL (overrides individual settings if provided)
+    )
+
+    # PostgreSQL Connection Pool Settings
+    POSTGRES_POOL_SIZE: int = 10  # Number of connections to maintain in pool
+    POSTGRES_MAX_OVERFLOW: int = 20  # Max additional connections beyond pool_size
+    POSTGRES_POOL_TIMEOUT: int = 30  # Seconds to wait for connection from pool
+    POSTGRES_POOL_RECYCLE: int = (
+        3600  # Recycle connections after N seconds (1 hour default)
     )
 
     @field_validator("DATABASE_URL", mode="after")
@@ -183,6 +188,10 @@ class Settings(BaseSettings):
         None  # Result backend URL (uses Redis URL if not set)
     )
 
+    # Celery Beat Schedule Settings (periodic task intervals in seconds)
+    CELERY_CLEANUP_SESSIONS_INTERVAL: int = 3600  # Run session cleanup every hour
+    CELERY_HEALTH_CHECK_INTERVAL: int = 300  # Run health check every 5 minutes
+
     @field_validator("CELERY_BROKER_URL", mode="after")
     @classmethod
     def set_celery_broker_url(cls, v: str | None, info: Any) -> str:
@@ -270,6 +279,42 @@ class Settings(BaseSettings):
     def MONGO_URL(self) -> str:
         """Get MongoDB URL (alias for MONGODB_URL)."""
         return self.MONGODB_URL or ""
+
+    @model_validator(mode="after")
+    def validate_production_settings(self) -> "Settings":
+        """
+        Enforce production-specific security requirements.
+
+        Validates that critical security settings are properly configured
+        when running in production mode (DEBUG=False, TESTING=False).
+        """
+        if self.is_production:
+            # Check for default/weak credentials
+            if self.POSTGRES_PASSWORD == "postgres":
+                raise ValueError(
+                    "POSTGRES_PASSWORD cannot be 'postgres' in production. "
+                    "Set a strong password via environment variable."
+                )
+
+            # Check that SECRET_KEY is explicitly set (not auto-generated)
+            if not hasattr(self, "_user_provided_secret_key"):
+                # If SECRET_KEY wasn't explicitly set via env var, it was auto-generated
+                import os
+
+                if "SECRET_KEY" not in os.environ:
+                    raise ValueError(
+                        "SECRET_KEY must be explicitly set in production. "
+                        "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+                    )
+
+            # Warn about MongoDB default credentials
+            if self.MONGO_USER and self.MONGO_PASSWORD == "password":
+                raise ValueError(
+                    "MONGO_PASSWORD appears to be a default value in production. "
+                    "Set a strong password via environment variable."
+                )
+
+        return self
 
 
 # Global settings instance - singleton pattern for configuration

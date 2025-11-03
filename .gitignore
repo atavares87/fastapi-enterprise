@@ -298,6 +298,9 @@ test-results/
 test-reports/
 .testmondata
 
+# k6 Load Testing
+k6-load-test-report.html
+
 # Development tools
 .ruff_cache/
 .mypy_cache/

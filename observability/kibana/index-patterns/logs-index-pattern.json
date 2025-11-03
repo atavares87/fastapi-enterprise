@@ -1,0 +1,12 @@
+{
+  "attributes": {
+    "title": "fastapi-enterprise-logs-*",
+    "timeFieldName": "@timestamp",
+    "fields": "[]",
+    "sourceFilters": "[]",
+    "fieldFormatMap": "{}",
+    "runtimeFieldMap": "{}",
+    "allowHidden": false,
+    "name": "FastAPI Enterprise Logs"
+  }
+}

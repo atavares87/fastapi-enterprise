@@ -1,0 +1,14 @@
+# Kibana Index Pattern Provisioning
+# Reference: https://www.elastic.co/guide/en/kibana/current/saved-objects-api-import.html
+
+apiVersion: kbn.currentVersion
+index_patterns:
+  - id: "fastapi-enterprise-logs-pattern"
+    name: "fastapi-enterprise-logs-*"
+    title: "fastapi-enterprise-logs-*"
+    timeFieldName: "@timestamp"
+    sourceFilters: []
+    fields: []
+    fieldFormatMap: {}
+    typeMeta: {}
+    runtimeFieldMap: {}

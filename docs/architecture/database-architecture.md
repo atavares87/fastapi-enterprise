@@ -64,14 +64,14 @@ graph TB
 - **Primary transactional data**: Orders, customers, pricing calculations
 - **Complex business logic**: Multi-table transactions, foreign key constraints
 - **Reporting and analytics**: Complex queries with joins and aggregations
-- **User management**: Authentication, authorization, user profiles
+- **User management**: User profiles and settings
 
 ### Schema Design
 
 #### Core Tables
 
 ```sql
--- Users and Authentication
+-- Users
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -145,7 +145,7 @@ CREATE INDEX idx_pricing_calculations_tiers ON pricing_calculations USING gin(pr
 ### Connection Management
 
 ```python
-# app/infrastructure/database/postgres/connection.py
+# app/adapter/outbound/database/postgres/connection.py
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import QueuePool
 
@@ -176,11 +176,11 @@ class PostgreSQLConnection:
 ### Repository Implementation
 
 ```python
-# app/infrastructure/database/postgres/repositories/pricing.py
+# app/adapter/outbound/database/postgres/repositories/pricing.py
 from sqlalchemy import select, desc
 from sqlalchemy.orm import selectinload
-from app.domains.pricing.repositories import PricingRepository
-from app.domains.pricing.models import PricingCalculation
+from app.core.domain.pricing.repositories import PricingRepository
+from app.core.domain.pricing.models import PricingCalculation
 
 class PostgresPricingRepository(PricingRepository):
     def __init__(self, session_factory: async_sessionmaker):
@@ -277,7 +277,7 @@ class PostgresPricingRepository(PricingRepository):
   "_id": ObjectId("..."),
   "timestamp": ISODate("2024-01-15T10:30:00Z"),
   "level": "INFO",
-  "logger": "app.domains.pricing.services",
+  "logger": "app.core.domain.pricing.services",
   "message": "Pricing calculation completed",
   "context": {
     "calculation_id": "uuid-string",
@@ -297,7 +297,7 @@ class PostgresPricingRepository(PricingRepository):
 ### Connection Management
 
 ```python
-# app/infrastructure/database/mongodb/connection.py
+# app/adapter/outbound/database/mongodb/connection.py
 from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
 
@@ -325,9 +325,9 @@ class MongoDBConnection:
 ### Repository Implementation
 
 ```python
-# app/infrastructure/database/mongodb/repositories/analytics.py
+# app/adapter/outbound/database/mongodb/repositories/analytics.py
 from beanie import Document
-from app.domains.analytics.repositories import AnalyticsRepository
+from app.core.domain.analytics.repositories import AnalyticsRepository
 
 class PricingAnalytics(Document):
     calculation_id: str
@@ -401,7 +401,7 @@ class MongoAnalyticsRepository(AnalyticsRepository):
 #### Caching Strategy
 
 ```python
-# app/infrastructure/redis/cache.py
+# app/adapter/outbound/redis/cache.py
 import json
 from typing import Optional, Any
 from redis.asyncio import Redis
@@ -461,7 +461,7 @@ class MaterialService:
 #### Rate Limiting
 
 ```python
-# app/infrastructure/redis/rate_limiter.py
+# app/adapter/outbound/redis/rate_limiter.py
 class RedisRateLimiter:
     def __init__(self, redis_client: Redis):
         self._redis = redis_client
@@ -498,7 +498,7 @@ class RedisRateLimiter:
 #### Session Storage
 
 ```python
-# app/infrastructure/redis/session.py
+# app/adapter/outbound/redis/session.py
 class RedisSessionStore:
     def __init__(self, redis_client: Redis, ttl: int = 1800):
         self._redis = redis_client
@@ -606,7 +606,7 @@ class PricingCalculationSaga:
 # migrations/env.py
 from alembic import context
 from sqlalchemy import engine_from_config, pool
-from app.infrastructure.database.postgres.models import Base
+from app.adapter.outbound.persistence.models import Base
 
 def run_migrations_online():
     """Run migrations in 'online' mode."""
@@ -629,7 +629,7 @@ def run_migrations_online():
 #### MongoDB Schema Evolution
 
 ```python
-# app/infrastructure/database/mongodb/migrations.py
+# app/adapter/outbound/database/mongodb/migrations.py
 class MongoMigration:
     def __init__(self, database: AsyncIOMotorDatabase):
         self.database = database
@@ -678,7 +678,7 @@ class MongoMigration:
 ### Database Health Checks
 
 ```python
-# app/infrastructure/database/health.py
+# app/adapter/outbound/database/health.py
 class DatabaseHealthChecker:
     def __init__(
         self,
@@ -723,7 +723,7 @@ class DatabaseHealthChecker:
 ### Performance Monitoring
 
 ```python
-# app/infrastructure/database/monitoring.py
+# app/adapter/outbound/database/monitoring.py
 class DatabaseMonitor:
     def __init__(self):
         self.metrics = {

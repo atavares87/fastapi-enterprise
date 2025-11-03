@@ -40,14 +40,15 @@ import structlog
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 
+from app.adapter.inbound.web.pricing import router as pricing_router
 from app.core.config import get_settings
 from app.core.database import close_databases, init_databases
 from app.core.exceptions import DomainException
 from app.core.logging import setup_logging
 from app.core.telemetry import initialize_telemetry, shutdown_telemetry
-from app.modules.pricing.router import router as pricing_router
 
 # Initialize structured logging for the application
 logger = structlog.get_logger(__name__)
@@ -84,19 +85,20 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     try:
-        # Initialize telemetry first
+        # Initialize OpenTelemetry for distributed tracing
         telemetry_manager = initialize_telemetry()
         telemetry_manager.instrument_fastapi(_app)
-        logger.info("✅ Telemetry initialized and FastAPI instrumented successfully")
+        logger.info("✅ OpenTelemetry initialized (distributed tracing)")
 
         # Initialize all database connections (PostgreSQL, MongoDB, Redis)
         await init_databases()
         logger.info("✅ Database connections established successfully")
 
-        # Additional startup tasks can be added here:
-        # - Warm up caches
-        # - Verify external service connectivity
-        # - Load initial data
+        # System metrics are automatically collected by OTEL SystemMetricsInstrumentor
+        logger.info("✅ System metrics (CPU, memory, disk) auto-collected by OTEL")
+
+        # Note: HTTP metrics are automatically handled by OpenTelemetry FastAPI instrumentation
+        # Business metrics are recorded using OTEL Meters in use cases
 
     except Exception as e:
         logger.error("❌ Failed to start application", error=str(e), exc_info=True)
@@ -109,47 +111,56 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # === SHUTDOWN PHASE ===
     logger.info("🛑 Application shutting down gracefully")
     try:
-        # Close all database connections and clean up resources
+        # System metrics automatically stopped by OTEL
+        logger.info("✅ System metrics stopped")
+
+        # Close all database connections
         await close_databases()
-        logger.info("✅ All database connections closed successfully")
+        logger.info("✅ Database connections closed")
 
         # Shutdown telemetry
-        shutdown_telemetry()
-        logger.info("✅ Telemetry shutdown completed")
+        await shutdown_telemetry()
+        logger.info("✅ Telemetry shutdown complete")
+
     except Exception as e:
-        logger.error("⚠️ Error during shutdown", error=str(e), exc_info=True)
+        logger.error("❌ Error during shutdown", error=str(e), exc_info=True)
+        raise
 
-    logger.info("👋 Application shutdown complete")
 
-
-# Setup logging first
+# === APPLICATION SETUP ===
+# Configure structured logging
 setup_logging()
 
-# Create FastAPI application using standard pattern
+# Create FastAPI application instance
 app = FastAPI(
     title=settings.APP_NAME,
+    version=settings.APP_VERSION,
     description="Enterprise-grade FastAPI application with hexagonal architecture",
-    version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
-    tags_metadata=[
-        {
-            "name": "Health",
-            "description": "Health check endpoints for monitoring application status and connectivity.",
-        },
-        {
-            "name": "Pricing",
-            "description": "Manufacturing pricing calculations across multiple service tiers. Includes cost breakdown, shipping calculations, volume discounts, and complexity surcharges.",
-        },
-    ],
 )
 
 
-def add_middleware(app: FastAPI) -> None:
-    """Add middleware to the FastAPI application."""
+# === OPENTELEMETRY METRICS (INDUSTRY STANDARD) ===
+# OpenTelemetry automatically instruments FastAPI and exposes /metrics endpoint
+# OTEL handles tracing, prometheus-fastapi-instrumentator handles metrics (standard approach)
+logger.info("✅ Observability configured (OTEL tracing + Prometheus metrics)")
 
-    # CORS middleware
+
+# === MIDDLEWARE ===
+def add_middleware(app: FastAPI) -> None:
+    """
+    Add middleware to the FastAPI application.
+
+    Middleware is executed for every request in the order it's added (top to bottom).
+    Each middleware can process the request, call the next middleware, then process the response.
+
+    Current middleware:
+    - CORS: Allow cross-origin requests from specified domains
+    - Request logging: Log all HTTP requests with timing information
+    """
+    # CORS middleware - allow cross-origin requests
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOWED_HOSTS,
@@ -161,215 +172,255 @@ def add_middleware(app: FastAPI) -> None:
     # Request logging middleware
     @app.middleware("http")
     async def log_requests(request: Request, call_next: Any) -> Any:
-        """Log all HTTP requests with timing information."""
-        start_time = time.time()
-        request_id = str(uuid.uuid4())
+        """
+        Log all HTTP requests with timing, status code, and sanitized URLs.
 
-        # Log request
+        Masks sensitive parameters in URLs (passwords, tokens, etc.).
+        """
+        start_time = time.time()
+
+        # Sanitize URL to mask sensitive parameters
+        sanitized_url = sanitize_url(str(request.url))
+
         logger.info(
             "HTTP request started",
             method=request.method,
-            url=str(request.url),
-            client_ip=request.client.host if request.client else None,
-            request_id=request_id,
+            url=sanitized_url,
+            client_host=request.client.host if request.client else None,
         )
 
         try:
             response = await call_next(request)
+            duration = time.time() - start_time
 
-            # Calculate request duration
-            process_time = time.time() - start_time
-
-            # Log response
             logger.info(
                 "HTTP request completed",
                 method=request.method,
-                url=str(request.url),
+                url=sanitized_url,
                 status_code=response.status_code,
-                process_time=round(process_time, 4),
-                request_id=request_id,
+                duration_seconds=round(duration, 3),
             )
-
-            # Add timing and request ID headers
-            response.headers["X-Process-Time"] = str(process_time)
-            response.headers["X-Request-ID"] = request_id
-
             return response
 
         except Exception as e:
-            process_time = time.time() - start_time
+            duration = time.time() - start_time
             logger.error(
                 "HTTP request failed",
                 method=request.method,
-                url=str(request.url),
-                process_time=round(process_time, 4),
+                url=sanitized_url,
+                duration_seconds=round(duration, 3),
                 error=str(e),
-                request_id=request_id,
                 exc_info=True,
             )
             raise
 
 
-def add_exception_handlers(app: FastAPI) -> None:
-    """Add custom exception handlers to the FastAPI application."""
+def sanitize_url(url: str) -> str:
+    """
+    Sanitize URL by masking sensitive query parameters.
 
-    @app.exception_handler(DomainException)
-    async def domain_exception_handler(request: Request, exc: DomainException) -> Any:
-        """Handle domain-specific exceptions."""
-        logger.warning(
-            "Domain exception occurred",
-            exception_type=type(exc).__name__,
-            message=str(exc),
-            url=str(request.url),
+    Masks common sensitive parameters like passwords, tokens, keys, secrets.
+    """
+    from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+    parsed = urlparse(url)
+    if not parsed.query:
+        return url
+
+    # Sensitive parameter names to mask
+    sensitive_params = {
+        "password",
+        "token",
+        "secret",
+        "key",
+        "api_key",
+        "apikey",
+        "access_token",
+        "refresh_token",
+        "auth",
+        "authorization",
+        "credit_card",
+        "ssn",
+        "pin",
+    }
+
+    # Parse query parameters
+    params = parse_qs(parsed.query, keep_blank_values=True)
+
+    # Mask sensitive parameters
+    sanitized_params = {}
+    for key, values in params.items():
+        if any(sensitive in key.lower() for sensitive in sensitive_params):
+            sanitized_params[key] = ["***REDACTED***"] * len(values)
+        else:
+            sanitized_params[key] = values
+
+    # Rebuild URL
+    new_query = urlencode(sanitized_params, doseq=True)
+    return urlunparse(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            new_query,
+            parsed.fragment,
         )
-
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={
-                "error": {
-                    "type": type(exc).__name__,
-                    "message": str(exc),
-                    "details": exc.details if hasattr(exc, "details") else None,
-                }
-            },
-        )
-
-    @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(
-        request: Request, exc: RequestValidationError
-    ) -> JSONResponse:
-        """Handle request validation errors."""
-        logger.warning(
-            "Validation error occurred",
-            errors=exc.errors(),
-            url=str(request.url),
-        )
-
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={
-                "error": {
-                    "type": "ValidationError",
-                    "message": "Request validation failed",
-                    "details": exc.errors(),
-                }
-            },
-        )
-
-    @app.exception_handler(Exception)
-    async def general_exception_handler(
-        request: Request, exc: Exception
-    ) -> JSONResponse:
-        """Handle unexpected exceptions."""
-        logger.error(
-            "Unexpected exception occurred",
-            exception_type=type(exc).__name__,
-            message=str(exc),
-            url=str(request.url),
-            exc_info=True,
-        )
-
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "error": {
-                    "type": "InternalServerError",
-                    "message": (
-                        "An unexpected error occurred"
-                        if not settings.DEBUG
-                        else str(exc)
-                    ),
-                }
-            },
-        )
-
-
-def include_routers(app: FastAPI) -> None:
-    """Include API routers in the FastAPI application."""
-
-    # Root endpoint
-    @app.get("/", tags=["Health"])
-    async def root() -> dict[str, Any]:
-        """Root endpoint with basic API information."""
-        return {
-            "message": f"Welcome to {settings.APP_NAME}",
-            "version": settings.APP_VERSION,
-            "environment": "development" if settings.DEBUG else "production",
-            "docs_url": "/docs",
-            "redoc_url": "/redoc",
-            "health_check": "/health",
-        }
-
-    # Health check endpoints
-    @app.get("/health", tags=["Health"])
-    async def health_check() -> dict[str, Any]:
-        """Basic health check endpoint."""
-        return {
-            "status": "healthy",
-            "timestamp": time.time(),
-            "app_name": settings.APP_NAME,
-            "version": settings.APP_VERSION,
-            "environment": "development" if settings.DEBUG else "production",
-        }
-
-    @app.get("/health/detailed", tags=["Health"])
-    async def detailed_health_check() -> dict[str, Any]:
-        """Detailed health check with database connectivity."""
-        from app.core.database import check_database_health
-
-        db_health = await check_database_health()
-
-        # Add application health check
-        all_checks = {
-            "application": {
-                "status": "healthy"
-            },  # Application is running if we reach this point
-            **{
-                k: {"status": "healthy" if v else "unhealthy"}
-                for k, v in db_health.items()
-            },
-        }
-
-        return {
-            "status": (
-                "healthy"
-                if all(check["status"] == "healthy" for check in all_checks.values())
-                else "unhealthy"
-            ),
-            "timestamp": time.time(),
-            "app_name": settings.APP_NAME,
-            "version": settings.APP_VERSION,
-            "environment": "development" if settings.DEBUG else "production",
-            "services": db_health,
-            "checks": all_checks,  # Include application check for tests
-        }
-
-    # Metrics endpoint for Prometheus
-    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-
-    @app.get("/metrics", tags=["Health"])
-    async def get_metrics() -> Response:
-        """Prometheus metrics endpoint."""
-        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
-    # Include module routers
-    # Include pricing router
-    app.include_router(pricing_router, prefix="/api/v1")
-
-
-# Add middleware, exception handlers, and routers to the app
-add_middleware(app)
-add_exception_handlers(app)
-include_routers(app)
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",  # nosec B104 - Intentional binding for container deployment
-        port=8000,
-        reload=settings.DEBUG,
-        log_level="debug" if settings.DEBUG else "info",
     )
+
+
+# Register middleware
+add_middleware(app)
+
+
+# === EXCEPTION HANDLERS ===
+@app.exception_handler(DomainException)
+async def domain_exception_handler(
+    request: Request, exc: DomainException
+) -> JSONResponse:
+    """
+    Handle domain-specific business logic exceptions.
+
+    These are expected exceptions that occur during normal business operations
+    (e.g., invalid input, business rule violations). They're logged as warnings
+    and return appropriate HTTP 400 status codes with detailed error messages.
+
+    Args:
+        request: The HTTP request that caused the exception
+        exc: The domain exception that was raised
+
+    Returns:
+        JSONResponse: A 400 Bad Request response with error details
+    """
+    logger.warning(
+        "Domain exception occurred",
+        exception_type=type(exc).__name__,
+        message=str(exc),
+        url=str(request.url),
+        method=request.method,
+    )
+
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"error": {"type": type(exc).__name__, "message": str(exc)}},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """
+    Handle Pydantic validation errors.
+
+    These occur when request data doesn't match the expected schema.
+    Returns detailed validation errors to help clients fix their requests.
+
+    Args:
+        request: The HTTP request that failed validation
+        exc: The validation exception with detailed error information
+
+    Returns:
+        JSONResponse: A 422 Unprocessable Entity response with validation errors
+    """
+    logger.warning(
+        "Request validation failed",
+        errors=exc.errors(),
+        url=str(request.url),
+        method=request.method,
+    )
+
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "error": {
+                "type": "ValidationError",
+                "message": "Request validation failed",
+                "details": exc.errors(),
+            }
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """
+    Handle unexpected exceptions securely.
+
+    Never exposes internal exception details to clients, even in debug mode.
+    All details are logged server-side for debugging.
+    """
+    # Generate unique error ID for tracking
+    error_id = str(uuid.uuid4())
+
+    # Log full exception details server-side (safe)
+    logger.error(
+        "Unexpected exception occurred",
+        error_id=error_id,
+        exception_type=type(exc).__name__,
+        message=str(exc),
+        url=str(request.url),
+        method=request.method,
+        exc_info=True,  # Includes full stack trace in logs
+    )
+
+    # Return generic error to client (secure)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": {
+                "type": "InternalServerError",
+                "message": "An unexpected error occurred",
+                "error_id": error_id,  # For support team to correlate with logs
+            }
+        },
+    )
+
+
+# === PROMETHEUS METRICS (STANDARD prometheus-fastapi-instrumentator) ===
+# This is the STANDARD, documented approach for FastAPI + Prometheus
+# Reference: https://github.com/trallnag/prometheus-fastapi-instrumentator
+# Standard configuration with all built-in metrics
+# This follows the library's documented API - NO custom code!
+instrumentator = Instrumentator(
+    should_instrument_requests_inprogress=True,  # Enables http_requests_in_progress gauge
+    should_respect_env_var=False,  # Always enable metrics
+    inprogress_name="http_requests_in_progress",  # Standard metric name
+    inprogress_labels=True,  # Include labels on in-progress gauge
+)
+
+# Instrument app and expose /metrics endpoint (standard method)
+instrumentator.instrument(app).expose(app)
+
+
+# Health check endpoint
+@app.get("/health", tags=["Health"], include_in_schema=True)
+async def health_check() -> dict[str, str]:
+    """
+    Health check endpoint for monitoring and load balancers.
+
+    Returns:
+        dict: Simple status message indicating service health
+    """
+    return {"status": "healthy", "service": settings.APP_NAME}
+
+
+# Register API routers
+app.include_router(pricing_router, prefix="/api/v1", tags=["Pricing"])
+
+
+# Root endpoint
+@app.get("/", tags=["Root"])
+async def root() -> dict[str, str]:
+    """
+    Root endpoint with API information.
+
+    Returns:
+        dict: Welcome message and links to documentation
+    """
+    return {
+        "message": f"Welcome to {settings.APP_NAME}",
+        "version": settings.APP_VERSION,
+        "docs": "/docs",
+        "health": "/health",
+    }

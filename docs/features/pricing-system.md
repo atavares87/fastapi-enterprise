@@ -123,7 +123,7 @@ graph TB
 
 ### Core Domain Models
 
-**Part Specification** (`app/domains/pricing/models.py`):
+**Part Specification** (`app/core/domain/pricing/models.py`):
 
 ```python
 from dataclasses import dataclass
@@ -132,7 +132,7 @@ from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
-from app.domains.shared.value_objects import Money, Dimensions
+from app.core.domain.shared.value_objects import Money, Dimensions
 
 class Material(Enum):
     ALUMINUM = "aluminum"
@@ -218,7 +218,7 @@ class PartSpecification:
         )
 ```
 
-**Cost Breakdown** (`app/domains/pricing/models.py`):
+**Cost Breakdown** (`app/core/domain/pricing/models.py`):
 
 ```python
 @dataclass(frozen=True)
@@ -272,7 +272,7 @@ class CostBreakdown:
         }
 ```
 
-**Pricing Tiers** (`app/domains/pricing/models.py`):
+**Pricing Tiers** (`app/core/domain/pricing/models.py`):
 
 ```python
 @dataclass(frozen=True)
@@ -378,15 +378,15 @@ class PricingResult:
 
 ### Business Logic Services
 
-**Pricing Service** (`app/domains/pricing/services.py`):
+**Pricing Service** (`app/core/domain/pricing/services.py`):
 
 ```python
 from typing import Dict
-from app.domains.pricing.models import (
+from app.core.domain.pricing.models import (
     PartSpecification, PricingResult, CostBreakdown, PricingTier
 )
-from app.domains.pricing.repositories import PricingRepository
-from app.domains.shared.value_objects import Money
+from app.core.domain.pricing.repositories import PricingRepository
+from app.core.domain.shared.value_objects import Money
 
 class PricingService:
     """Core pricing calculation service"""
@@ -742,7 +742,7 @@ Get list of available pricing tiers.
 ### Caching Strategy
 
 ```python
-from app.infrastructure.redis.cache import RedisCache
+from app.adapter.outbound.cache.cache import RedisCache
 
 class CachedPricingService(PricingService):
     """Pricing service with caching for performance"""

@@ -52,15 +52,15 @@ Let's implement a **Quote Management** feature as an example:
 Create the domain structure:
 
 ```bash
-mkdir -p app/domains/quotes
-touch app/domains/quotes/__init__.py
-touch app/domains/quotes/models.py
-touch app/domains/quotes/services.py
-touch app/domains/quotes/repositories.py
-touch app/domains/quotes/exceptions.py
+mkdir -p app/core/domain/quotes
+touch app/core/domain/quotes/__init__.py
+touch app/core/domain/quotes/models.py
+touch app/core/domain/quotes/services.py
+touch app/core/domain/quotes/repositories.py
+touch app/core/domain/quotes/exceptions.py
 ```
 
-**Define domain models** (`app/domains/quotes/models.py`):
+**Define domain models** (`app/core/domain/quotes/models.py`):
 
 ```python
 from dataclasses import dataclass
@@ -70,8 +70,8 @@ from enum import Enum
 from typing import Optional, List
 from uuid import UUID, uuid4
 
-from app.domains.shared.value_objects import Money
-from app.domains.pricing.models import PricingCalculation
+from app.core.domain.shared.value_objects import Money
+from app.core.domain.pricing.models import PricingCalculation
 
 class QuoteStatus(Enum):
     DRAFT = "draft"
@@ -197,7 +197,7 @@ class Quote:
         self.updated_at = datetime.utcnow()
 ```
 
-**Define domain exceptions** (`app/domains/quotes/exceptions.py`):
+**Define domain exceptions** (`app/core/domain/quotes/exceptions.py`):
 
 ```python
 class QuoteError(Exception):
@@ -219,17 +219,17 @@ class QuoteExpiredError(QuoteError):
 
 ### Step 3: Implement Business Logic
 
-**Create domain services** (`app/domains/quotes/services.py`):
+**Create domain services** (`app/core/domain/quotes/services.py`):
 
 ```python
 from typing import List, Optional
 from uuid import UUID
 
-from app.domains.pricing.models import PricingCalculation
-from app.domains.pricing.services import PricingService
-from app.domains.quotes.models import Quote, QuoteStatus
-from app.domains.quotes.repositories import QuoteRepository
-from app.domains.quotes.exceptions import QuoteNotFoundError, InvalidQuoteOperationError
+from app.core.domain.pricing.models import PricingCalculation
+from app.core.domain.pricing.services import PricingService
+from app.core.domain.quotes.models import Quote, QuoteStatus
+from app.core.domain.quotes.repositories import QuoteRepository
+from app.core.domain.quotes.exceptions import QuoteNotFoundError, InvalidQuoteOperationError
 
 class QuoteService:
     """Domain service for quote management"""
@@ -322,14 +322,14 @@ class QuoteService:
 
 ### Step 4: Create Repository Interface
 
-**Define repository interface** (`app/domains/quotes/repositories.py`):
+**Define repository interface** (`app/core/domain/quotes/repositories.py`):
 
 ```python
 from abc import ABC, abstractmethod
 from typing import List, Optional
 from uuid import UUID
 
-from app.domains.quotes.models import Quote, QuoteStatus
+from app.core.domain.quotes.models import Quote, QuoteStatus
 
 class QuoteRepository(ABC):
     """Repository interface for quote persistence"""
@@ -367,7 +367,7 @@ class QuoteRepository(ABC):
 
 ### Step 5: Implement Data Access Layer
 
-**Create PostgreSQL repository implementation** (`app/infrastructure/database/postgres/repositories/quotes.py`):
+**Create PostgreSQL repository implementation** (`app/adapter/outbound/database/postgres/repositories/quotes.py`):
 
 ```python
 from typing import List, Optional
@@ -375,10 +375,10 @@ from uuid import UUID
 from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import selectinload
 
-from app.domains.quotes.models import Quote, QuoteStatus
-from app.domains.quotes.repositories import QuoteRepository
-from app.infrastructure.database.postgres.models import QuoteORM
-from app.infrastructure.database.postgres.connection import PostgreSQLConnection
+from app.core.domain.quotes.models import Quote, QuoteStatus
+from app.core.domain.quotes.repositories import QuoteRepository
+from app.adapter.outbound.persistence.models import QuoteORM
+from app.adapter.outbound.persistence.connection import PostgreSQLConnection
 
 class PostgresQuoteRepository(QuoteRepository):
     """PostgreSQL implementation of quote repository"""
@@ -465,7 +465,7 @@ class PostgresQuoteRepository(QuoteRepository):
             return [quote_orm.to_domain() for quote_orm in quote_orms]
 ```
 
-**Create SQLAlchemy models** (`app/infrastructure/database/postgres/models.py` - add to existing file):
+**Create SQLAlchemy models** (`app/adapter/outbound/database/postgres/models.py` - add to existing file):
 
 ```python
 # Add to existing models file
@@ -522,7 +522,7 @@ class QuoteVersionORM(Base):
 
 ### Step 6: Create API Endpoints
 
-**Create API router** (`app/api/v1/quotes.py`):
+**Create API router** (`app/adapter/inbound/web/v1/quotes.py`):
 
 ```python
 from typing import List, Optional
@@ -530,10 +530,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.api.dependencies import get_quote_service, get_current_user
-from app.domains.quotes.models import QuoteStatus
-from app.domains.quotes.services import QuoteService
-from app.domains.quotes.exceptions import QuoteNotFoundError, InvalidQuoteOperationError
+from app.adapter.inbound.web.dependencies import get_quote_service, get_current_user
+from app.core.domain.quotes.models import QuoteStatus
+from app.core.domain.quotes.services import QuoteService
+from app.core.domain.quotes.exceptions import QuoteNotFoundError, InvalidQuoteOperationError
 
 router = APIRouter(prefix="/quotes", tags=["quotes"])
 
@@ -680,7 +680,7 @@ async def get_customer_quotes(
     return [QuoteResponse.from_domain(quote) for quote in quotes]
 ```
 
-**Update main router** (`app/api/v1/__init__.py`):
+**Update main router** (`app/adapter/inbound/web/v1/__init__.py`):
 
 ```python
 from fastapi import APIRouter
@@ -703,9 +703,9 @@ import pytest
 from datetime import datetime, timedelta
 from uuid import uuid4
 
-from app.domains.quotes.models import Quote, QuoteStatus
-from app.domains.quotes.exceptions import InvalidQuoteOperationError
-from app.domains.pricing.models import PricingCalculation
+from app.core.domain.quotes.models import Quote, QuoteStatus
+from app.core.domain.quotes.exceptions import InvalidQuoteOperationError
+from app.core.domain.pricing.models import PricingCalculation
 
 class TestQuote:
     def test_create_quote(self):
@@ -905,12 +905,12 @@ def downgrade():
 
 ### Step 9: Update Dependencies and Configuration
 
-**Update dependency injection** (`app/api/dependencies.py`):
+**Update dependency injection** (`app/adapter/inbound/web/dependencies.py`):
 
 ```python
-from app.domains.quotes.services import QuoteService
-from app.domains.quotes.repositories import QuoteRepository
-from app.infrastructure.database.postgres.repositories.quotes import PostgresQuoteRepository
+from app.core.domain.quotes.services import QuoteService
+from app.core.domain.quotes.repositories import QuoteRepository
+from app.adapter.outbound.persistence.repositories.quotes import PostgresQuoteRepository
 
 def get_quote_repository() -> QuoteRepository:
     return PostgresQuoteRepository(get_postgres_connection())
@@ -924,11 +924,11 @@ def get_quote_service(
 
 ### Step 10: Add Background Tasks
 
-**Create Celery task** (`app/infrastructure/tasks/quote_tasks.py`):
+**Create Celery task** (`app/adapter/outbound/tasks/quote_tasks.py`):
 
 ```python
 from celery import shared_task
-from app.api.dependencies import get_quote_service
+from app.adapter.inbound.web.dependencies import get_quote_service
 
 @shared_task
 def expire_old_quotes():

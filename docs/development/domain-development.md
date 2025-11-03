@@ -29,7 +29,7 @@ Each domain should have:
 ### Standard Domain Organization
 
 ```
-app/domains/{domain_name}/
+app/core/domain/{domain_name}/
 ├── __init__.py          # Domain package initialization
 ├── models.py            # Entities, value objects, and aggregates
 ├── services.py          # Domain services and business logic
@@ -80,18 +80,18 @@ Let's walk through creating a comprehensive **Inventory Domain** for managing ma
 
 ```bash
 # Create the domain directory structure
-mkdir -p app/domains/inventory
-touch app/domains/inventory/__init__.py
-touch app/domains/inventory/models.py
-touch app/domains/inventory/services.py
-touch app/domains/inventory/repositories.py
-touch app/domains/inventory/exceptions.py
-touch app/domains/inventory/events.py
+mkdir -p app/core/domain/inventory
+touch app/core/domain/inventory/__init__.py
+touch app/core/domain/inventory/models.py
+touch app/core/domain/inventory/services.py
+touch app/core/domain/inventory/repositories.py
+touch app/core/domain/inventory/exceptions.py
+touch app/core/domain/inventory/events.py
 ```
 
 ### Step 3: Define Domain Models
 
-**Value Objects** (`app/domains/inventory/models.py`):
+**Value Objects** (`app/core/domain/inventory/models.py`):
 
 ```python
 from dataclasses import dataclass
@@ -101,7 +101,7 @@ from typing import Optional, List, Dict
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
-from app.domains.shared.value_objects import Money, Weight
+from app.core.domain.shared.value_objects import Money, Weight
 
 @dataclass(frozen=True)
 class MaterialCode:
@@ -432,7 +432,7 @@ class StockMovement:
 
 ### Step 4: Define Domain Exceptions
 
-**Domain-specific exceptions** (`app/domains/inventory/exceptions.py`):
+**Domain-specific exceptions** (`app/core/domain/inventory/exceptions.py`):
 
 ```python
 class InventoryError(Exception):
@@ -466,7 +466,7 @@ class StockLevelError(InventoryError):
 
 ### Step 5: Create Repository Interfaces
 
-**Repository interfaces** (`app/domains/inventory/repositories.py`):
+**Repository interfaces** (`app/core/domain/inventory/repositories.py`):
 
 ```python
 from abc import ABC, abstractmethod
@@ -474,7 +474,7 @@ from typing import List, Optional, Dict
 from uuid import UUID
 from datetime import datetime
 
-from app.domains.inventory.models import (
+from app.core.domain.inventory.models import (
     Material, MaterialStock, Supplier, StockReservation,
     StockMovement, StockQuantity
 )
@@ -584,7 +584,7 @@ class SupplierRepository(ABC):
 
 ### Step 6: Implement Domain Services
 
-**Domain services** (`app/domains/inventory/services.py`):
+**Domain services** (`app/core/domain/inventory/services.py`):
 
 ```python
 from typing import List, Optional, Dict
@@ -592,15 +592,15 @@ from uuid import UUID
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from app.domains.inventory.models import (
+from app.core.domain.inventory.models import (
     Material, MaterialStock, Supplier, StockReservation,
     StockQuantity, MaterialCode, SupplierRating
 )
-from app.domains.inventory.repositories import (
+from app.core.domain.inventory.repositories import (
     MaterialRepository, MaterialStockRepository,
     ReservationRepository, SupplierRepository
 )
-from app.domains.inventory.exceptions import (
+from app.core.domain.inventory.exceptions import (
     MaterialNotFoundError, InsufficientStockError,
     InvalidReservationError, SupplierNotFoundError
 )
@@ -830,7 +830,7 @@ class StockMovementService:
 
 ### Step 7: Define Domain Events
 
-**Domain events** (`app/domains/inventory/events.py`):
+**Domain events** (`app/core/domain/inventory/events.py`):
 
 ```python
 from dataclasses import dataclass
@@ -838,7 +838,7 @@ from datetime import datetime
 from uuid import UUID
 from typing import Dict, Any
 
-from app.domains.inventory.models import StockQuantity
+from app.core.domain.inventory.models import StockQuantity
 
 @dataclass
 class DomainEvent:
@@ -898,11 +898,11 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 from uuid import uuid4
 
-from app.domains.inventory.models import (
+from app.core.domain.inventory.models import (
     Material, MaterialStock, StockQuantity, MaterialCode,
     StockReservation, ReservationStatus
 )
-from app.domains.inventory.exceptions import (
+from app.core.domain.inventory.exceptions import (
     InsufficientStockError, InvalidStockOperationError
 )
 
@@ -1064,12 +1064,12 @@ def create_test_reservation() -> StockReservation:
 
 ### Step 9: Integration with Other Domains
 
-**Integrate with Pricing Domain** (`app/domains/pricing/services.py` - update existing):
+**Integrate with Pricing Domain** (`app/core/domain/pricing/services.py` - update existing):
 
 ```python
 # Add to existing PricingService class
-from app.domains.inventory.services import InventoryService
-from app.domains.inventory.exceptions import InsufficientStockError
+from app.core.domain.inventory.services import InventoryService
+from app.core.domain.inventory.exceptions import InsufficientStockError
 
 class PricingService:
     def __init__(

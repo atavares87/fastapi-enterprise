@@ -6,6 +6,7 @@ observability and debugging in production environments.
 """
 
 import logging
+import os
 import sys
 from typing import Any
 
@@ -77,7 +78,11 @@ def setup_logging() -> None:
     ]
 
     # Add appropriate renderer based on format
-    if settings.LOG_FORMAT.lower() == "json":
+    # For ELK stack, always use JSON format for better indexing
+    if (
+        settings.LOG_FORMAT.lower() == "json"
+        or os.getenv("ELK_ENABLED", "false").lower() == "true"
+    ):
         processors.append(structlog.processors.JSONRenderer())
     else:
         processors.extend(
