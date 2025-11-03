@@ -6,7 +6,7 @@ Tests telemetry initialization and setup paths.
 
 from unittest.mock import patch
 
-from app.core.telemetry import TelemetryConfig, TelemetryManager
+from app.infra.telemetry import TelemetryConfig, TelemetryManager
 
 
 class TestTelemetryManagerSetup:
@@ -21,9 +21,9 @@ class TestTelemetryManagerSetup:
 
         assert manager.resource is not None
 
-    @patch("app.core.telemetry.TracerProvider")
-    @patch("app.core.telemetry.OTLPSpanExporter")
-    @patch("app.core.telemetry.BatchSpanProcessor")
+    @patch("app.infra.telemetry.TracerProvider")
+    @patch("app.infra.telemetry.OTLPSpanExporter")
+    @patch("app.infra.telemetry.BatchSpanProcessor")
     def test_setup_tracing(self, mock_processor, mock_exporter, mock_provider):
         """Test _setup_tracing method."""
         config = TelemetryConfig()
@@ -35,7 +35,7 @@ class TestTelemetryManagerSetup:
         # Should not raise
         assert True
 
-    @patch("app.core.telemetry.trace")
+    @patch("app.infra.telemetry.trace")
     def test_setup_propagation(self, mock_trace):
         """Test _setup_propagation method."""
         config = TelemetryConfig()

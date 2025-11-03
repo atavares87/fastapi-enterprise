@@ -12,7 +12,7 @@ class TestDatabaseManager:
         """Test DatabaseManager initialization."""
         # DatabaseManager is initialized as singleton
         # Just verify it exists and has settings
-        from app.core.database import _db_manager
+        from app.infra.database import _db_manager
 
         assert _db_manager is not None
         assert _db_manager.settings is not None

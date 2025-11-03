@@ -49,7 +49,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 )
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app.core.database import (  # noqa: E402
+from app.infra.database import (  # noqa: E402
     Base,
     get_cache_client,
     get_db_session,
@@ -240,7 +240,7 @@ def celery_app():
     Returns:
         Celery app configured for testing
     """
-    from app.core.celery_app import celery_app
+    from app.infra.celery_app import celery_app
 
     # Configure for testing
     celery_app.conf.update(

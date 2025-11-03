@@ -8,9 +8,9 @@ configures task discovery, and provides the main Celery app instance.
 from typing import Any
 
 from celery import Celery
-from structlog import get_logger
 
 from app.core.config import get_settings
+from app.infra.logging import get_logger
 
 # Get settings instance
 settings = get_settings()
@@ -129,7 +129,7 @@ def setup_celery_logging() -> None:
     """
     import logging
 
-    from app.core.logging import get_logger
+    from app.infra.logging import get_logger
 
     # Configure Celery logger
     celery_logger = logging.getLogger("celery")

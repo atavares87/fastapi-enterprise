@@ -4,7 +4,7 @@ Unit tests for telemetry module.
 Tests OpenTelemetry initialization and configuration.
 """
 
-from app.core.telemetry import (
+from app.infra.telemetry import (
     TelemetryConfig,
     TelemetryManager,
     get_telemetry_manager,
@@ -106,7 +106,7 @@ class TestTelemetryFunctions:
     def test_get_telemetry_manager_before_init(self):
         """Test get_telemetry_manager before initialization."""
         # Clear any existing manager
-        import app.core.telemetry as telemetry_module
+        import app.infra.telemetry as telemetry_module
 
         telemetry_module._telemetry_manager = None
 

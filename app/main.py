@@ -45,10 +45,10 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.adapter.inbound.web.pricing import router as pricing_router
 from app.core.config import get_settings
-from app.core.database import close_databases, init_databases
 from app.core.exceptions import DomainException
-from app.core.logging import setup_logging
-from app.core.telemetry import initialize_telemetry, shutdown_telemetry
+from app.infra.database import close_databases, init_databases
+from app.infra.logging import setup_logging
+from app.infra.telemetry import initialize_telemetry, shutdown_telemetry
 
 # Initialize structured logging for the application
 logger = structlog.get_logger(__name__)

@@ -20,7 +20,7 @@ from opentelemetry import trace
 from prometheus_client import Counter, Histogram  # STANDARD Prometheus client library
 
 from app.core.domain.pricing.tier import TierPricing
-from app.core.telemetry import get_telemetry_manager
+from app.infra.telemetry import get_telemetry_manager
 
 logger = structlog.get_logger(__name__)
 

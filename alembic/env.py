@@ -40,7 +40,7 @@ if "POSTGRES_PASSWORD" not in os.environ:
 from app.core.config import get_settings  # noqa: E402
 
 settings = get_settings()
-from app.core.database import Base  # noqa
+from app.infra.database import Base  # noqa
 
 # Import all models to ensure they're registered with SQLAlchemy
 # Auth models have been removed from the application
