@@ -4,7 +4,7 @@ Unit tests for exception classes.
 Tests custom exception classes.
 """
 
-from app.exception.domain_exceptions import (
+from app.shared.exceptions import (
     DomainException,
     NotFoundException,
     ValidationException,

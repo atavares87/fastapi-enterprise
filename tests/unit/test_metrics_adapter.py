@@ -8,8 +8,8 @@ from uuid import uuid4
 
 import pytest
 
-from app.domain.model import PriceBreakdown, TierPricing
-from app.repository.metrics_repository import MetricsRepository
+from app.pricing.models import PriceBreakdown, TierPricing
+from app.shared.metrics_repository import MetricsRepository
 
 
 class TestMetricsRepository:

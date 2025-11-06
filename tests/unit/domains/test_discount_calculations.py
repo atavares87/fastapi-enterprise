@@ -6,8 +6,12 @@ Tests volume discount and final discount calculations.
 
 from decimal import Decimal
 
-from app.domain.core.pricing import calculate_final_discount, calculate_volume_discount
-from app.domain.model import CostBreakdown, PricingConfiguration, PricingRequest
+from app.cost.models import CostBreakdown
+from app.pricing.core.discount_calculations import (
+    calculate_final_discount,
+    calculate_volume_discount,
+)
+from app.pricing.models import PricingConfiguration, PricingRequest
 
 
 class TestVolumeDiscount:

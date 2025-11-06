@@ -12,15 +12,9 @@ from decimal import Decimal
 
 import pytest
 
-from app.domain.core.cost import calculate_manufacturing_cost, estimate_cost_range
-from app.domain.model import (
-    ManufacturingProcess,
-    Material,
-    MaterialCost,
-    PartDimensions,
-    PartSpecification,
-    ProcessCost,
-)
+from app.cost.core.calculations import calculate_manufacturing_cost, estimate_cost_range
+from app.cost.models import MaterialCost, PartDimensions, PartSpecification, ProcessCost
+from app.shared.enums import ManufacturingProcess, Material
 
 
 def test_calculate_manufacturing_cost_with_aluminum_cnc():

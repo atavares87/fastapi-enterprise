@@ -6,7 +6,7 @@ Tests PriceBreakdown.create factory method.
 
 from decimal import Decimal
 
-from app.domain.model import PriceBreakdown
+from app.pricing.models import PriceBreakdown
 
 
 class TestPriceBreakdown:

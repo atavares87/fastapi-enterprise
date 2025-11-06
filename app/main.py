@@ -41,19 +41,19 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from app.config.dependencies import get_pricing_service  # noqa: F401
-from app.controller.health_controller import router as health_router
-from app.controller.pricing_controller import router as pricing_router
-from app.core.config import get_settings
-from app.exception.domain_exceptions import DomainException
-from app.exception.handler import (
+from app.health.controller import router as health_router
+from app.infrastructure.database import close_databases, init_databases
+from app.infrastructure.logging import setup_logging
+from app.infrastructure.telemetry import initialize_telemetry, shutdown_telemetry
+from app.pricing.controller import router as pricing_router
+from app.shared.config import get_settings
+from app.shared.dependencies import get_pricing_service  # noqa: F401
+from app.shared.exception_handler import (
     domain_exception_handler,
     general_exception_handler,
     validation_exception_handler,
 )
-from app.infrastructure.database import close_databases, init_databases
-from app.infrastructure.logging import setup_logging
-from app.infrastructure.telemetry import initialize_telemetry, shutdown_telemetry
+from app.shared.exceptions import DomainException
 
 # Initialize structured logging for the application
 logger = structlog.get_logger(__name__)

@@ -8,14 +8,13 @@ from decimal import Decimal
 
 import pytest
 
-from app.domain.core.pricing import calculate_tier_price, calculate_tier_pricing
-from app.domain.model import (
-    CostBreakdown,
-    PricingConfiguration,
-    PricingRequest,
-    PricingTier,
-    ShippingCost,
+from app.cost.models import CostBreakdown
+from app.pricing.core.tier_calculations import (
+    calculate_tier_price,
+    calculate_tier_pricing,
 )
+from app.pricing.models import PricingConfiguration, PricingRequest, ShippingCost
+from app.shared.enums import PricingTier
 
 
 class TestTierCalculations:
