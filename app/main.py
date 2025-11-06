@@ -31,24 +31,29 @@ Quick Start:
 """
 
 import time
-import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
 import structlog
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from app.adapter.inbound.web.pricing import router as pricing_router
+from app.config.dependencies import get_pricing_service  # noqa: F401
+from app.controller.health_controller import router as health_router
+from app.controller.pricing_controller import router as pricing_router
 from app.core.config import get_settings
-from app.core.exceptions import DomainException
-from app.infra.database import close_databases, init_databases
-from app.infra.logging import setup_logging
-from app.infra.telemetry import initialize_telemetry, shutdown_telemetry
+from app.exception.domain_exceptions import DomainException
+from app.exception.handler import (
+    domain_exception_handler,
+    general_exception_handler,
+    validation_exception_handler,
+)
+from app.infrastructure.database import close_databases, init_databases
+from app.infrastructure.logging import setup_logging
+from app.infrastructure.telemetry import initialize_telemetry, shutdown_telemetry
 
 # Initialize structured logging for the application
 logger = structlog.get_logger(__name__)
@@ -135,7 +140,7 @@ setup_logging()
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="Enterprise-grade FastAPI application with hexagonal architecture",
+    description="Enterprise-grade FastAPI application with Layered Architecture (Spring Boot style)",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -274,107 +279,10 @@ add_middleware(app)
 
 
 # === EXCEPTION HANDLERS ===
-@app.exception_handler(DomainException)
-async def domain_exception_handler(
-    request: Request, exc: DomainException
-) -> JSONResponse:
-    """
-    Handle domain-specific business logic exceptions.
-
-    These are expected exceptions that occur during normal business operations
-    (e.g., invalid input, business rule violations). They're logged as warnings
-    and return appropriate HTTP 400 status codes with detailed error messages.
-
-    Args:
-        request: The HTTP request that caused the exception
-        exc: The domain exception that was raised
-
-    Returns:
-        JSONResponse: A 400 Bad Request response with error details
-    """
-    logger.warning(
-        "Domain exception occurred",
-        exception_type=type(exc).__name__,
-        message=str(exc),
-        url=str(request.url),
-        method=request.method,
-    )
-
-    return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        content={"error": {"type": type(exc).__name__, "message": str(exc)}},
-    )
-
-
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
-    """
-    Handle Pydantic validation errors.
-
-    These occur when request data doesn't match the expected schema.
-    Returns detailed validation errors to help clients fix their requests.
-
-    Args:
-        request: The HTTP request that failed validation
-        exc: The validation exception with detailed error information
-
-    Returns:
-        JSONResponse: A 422 Unprocessable Entity response with validation errors
-    """
-    logger.warning(
-        "Request validation failed",
-        errors=exc.errors(),
-        url=str(request.url),
-        method=request.method,
-    )
-
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={
-            "error": {
-                "type": "ValidationError",
-                "message": "Request validation failed",
-                "details": exc.errors(),
-            }
-        },
-    )
-
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """
-    Handle unexpected exceptions securely.
-
-    Never exposes internal exception details to clients, even in debug mode.
-    All details are logged server-side for debugging.
-    """
-    # Generate unique error ID for tracking
-    error_id = str(uuid.uuid4())
-
-    # Log full exception details server-side (safe)
-    logger.error(
-        "Unexpected exception occurred",
-        error_id=error_id,
-        exception_type=type(exc).__name__,
-        message=str(exc),
-        url=str(request.url),
-        method=request.method,
-        exc_info=True,  # Includes full stack trace in logs
-    )
-
-    # Return generic error to client (secure)
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "error": {
-                "type": "InternalServerError",
-                "message": "An unexpected error occurred",
-                "error_id": error_id,  # For support team to correlate with logs
-            }
-        },
-    )
+# Register global exception handlers
+app.add_exception_handler(DomainException, domain_exception_handler)  # type: ignore[arg-type]
+app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
+app.add_exception_handler(Exception, general_exception_handler)
 
 
 # === PROMETHEUS METRICS (STANDARD prometheus-fastapi-instrumentator) ===
@@ -393,34 +301,9 @@ instrumentator = Instrumentator(
 instrumentator.instrument(app).expose(app)
 
 
-# Health check endpoint
-@app.get("/health", tags=["Health"], include_in_schema=True)
-async def health_check() -> dict[str, str]:
-    """
-    Health check endpoint for monitoring and load balancers.
+# === REGISTER ROUTERS ===
+# Register all controllers (analogous to Spring Boot component scanning)
+app.include_router(health_router)  # Health and root endpoints
+app.include_router(pricing_router)  # Pricing endpoints at /api/v1/pricing
 
-    Returns:
-        dict: Simple status message indicating service health
-    """
-    return {"status": "healthy", "service": settings.APP_NAME}
-
-
-# Register API routers
-app.include_router(pricing_router, prefix="/api/v1", tags=["Pricing"])
-
-
-# Root endpoint
-@app.get("/", tags=["Root"])
-async def root() -> dict[str, str]:
-    """
-    Root endpoint with API information.
-
-    Returns:
-        dict: Welcome message and links to documentation
-    """
-    return {
-        "message": f"Welcome to {settings.APP_NAME}",
-        "version": settings.APP_VERSION,
-        "docs": "/docs",
-        "health": "/health",
-    }
+logger.info("✅ All controllers registered")

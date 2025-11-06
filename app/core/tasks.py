@@ -11,7 +11,7 @@ from typing import Any
 
 from structlog import get_logger
 
-from app.infra.celery_app import celery_app
+from app.infrastructure.celery_app import celery_app
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -27,7 +27,7 @@ async def _cleanup_expired_sessions_async(task_id: str) -> dict[str, Any]:
     Returns:
         dict: Summary of cleanup operation
     """
-    from app.infra.database import get_postgres_session
+    from app.infrastructure.database import get_postgres_session
 
     logger.info("Starting session cleanup task", task_id=task_id)
 
@@ -213,7 +213,7 @@ async def _periodic_health_check_async(task_id: str) -> dict[str, Any]:
     Returns:
         dict: Health check results
     """
-    from app.infra.database import check_database_health
+    from app.infrastructure.database import check_database_health
 
     logger.info("Starting periodic health check", task_id=task_id)
 

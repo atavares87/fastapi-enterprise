@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from app.infra.telemetry import (
+from app.infrastructure.telemetry import (
     TelemetryConfig,
     TelemetryManager,
     get_telemetry_manager,
@@ -28,15 +28,15 @@ class TestTelemetryManager:
         assert manager.config == config
         assert manager.tracer_provider is None
 
-    @patch("app.infra.telemetry.Resource.create")
-    @patch("app.infra.telemetry.TracerProvider")
-    @patch("app.infra.telemetry.OTLPSpanExporter")
-    @patch("app.infra.telemetry.BatchSpanProcessor")
-    @patch("app.infra.telemetry.ConsoleSpanExporter")
-    @patch("app.infra.telemetry.set_global_textmap")
-    @patch("app.infra.telemetry.PymongoInstrumentor")
-    @patch("app.infra.telemetry.HTTPXClientInstrumentor")
-    @patch("app.infra.telemetry.RedisInstrumentor")
+    @patch("app.infrastructure.telemetry.Resource.create")
+    @patch("app.infrastructure.telemetry.TracerProvider")
+    @patch("app.infrastructure.telemetry.OTLPSpanExporter")
+    @patch("app.infrastructure.telemetry.BatchSpanProcessor")
+    @patch("app.infrastructure.telemetry.ConsoleSpanExporter")
+    @patch("app.infrastructure.telemetry.set_global_textmap")
+    @patch("app.infrastructure.telemetry.PymongoInstrumentor")
+    @patch("app.infrastructure.telemetry.HTTPXClientInstrumentor")
+    @patch("app.infrastructure.telemetry.RedisInstrumentor")
     def test_setup_telemetry(
         self,
         mock_redis,
@@ -92,15 +92,15 @@ class TestTelemetryManager:
         monkeypatch.setenv("ENABLE_CONSOLE_TRACES", "true")
 
         with (
-            patch("app.infra.telemetry.Resource.create"),
-            patch("app.infra.telemetry.TracerProvider"),
-            patch("app.infra.telemetry.OTLPSpanExporter"),
-            patch("app.infra.telemetry.BatchSpanProcessor"),
-            patch("app.infra.telemetry.ConsoleSpanExporter") as mock_console,
-            patch("app.infra.telemetry.set_global_textmap"),
-            patch("app.infra.telemetry.PymongoInstrumentor"),
-            patch("app.infra.telemetry.HTTPXClientInstrumentor"),
-            patch("app.infra.telemetry.RedisInstrumentor"),
+            patch("app.infrastructure.telemetry.Resource.create"),
+            patch("app.infrastructure.telemetry.TracerProvider"),
+            patch("app.infrastructure.telemetry.OTLPSpanExporter"),
+            patch("app.infrastructure.telemetry.BatchSpanProcessor"),
+            patch("app.infrastructure.telemetry.ConsoleSpanExporter") as mock_console,
+            patch("app.infrastructure.telemetry.set_global_textmap"),
+            patch("app.infrastructure.telemetry.PymongoInstrumentor"),
+            patch("app.infrastructure.telemetry.HTTPXClientInstrumentor"),
+            patch("app.infrastructure.telemetry.RedisInstrumentor"),
         ):
 
             config = TelemetryConfig()
@@ -110,7 +110,7 @@ class TestTelemetryManager:
             # Console exporter should be created if ENABLE_CONSOLE_TRACES is true
             mock_console.assert_called_once()
 
-    @patch("app.infra.telemetry.FastAPIInstrumentor")
+    @patch("app.infrastructure.telemetry.FastAPIInstrumentor")
     def test_instrument_fastapi(self, mock_instrumentor):
         """Test instrument_fastapi."""
         config = TelemetryConfig()
@@ -125,7 +125,7 @@ class TestTelemetryManager:
             tracer_provider=manager.tracer_provider,
         )
 
-    @patch("app.infra.telemetry.trace.get_tracer")
+    @patch("app.infrastructure.telemetry.trace.get_tracer")
     def test_get_tracer(self, mock_get_tracer):
         """Test get_tracer."""
         config = TelemetryConfig()
@@ -182,7 +182,7 @@ class TestTelemetryManager:
         # Should not raise
         manager.shutdown()
 
-    @patch("app.infra.telemetry.TelemetryManager")
+    @patch("app.infrastructure.telemetry.TelemetryManager")
     def test_initialize_telemetry(self, mock_manager_class):
         """Test initialize_telemetry."""
         mock_manager = Mock()
@@ -194,7 +194,7 @@ class TestTelemetryManager:
         mock_manager.setup_telemetry.assert_called_once()
         assert result == mock_manager
 
-    @patch("app.infra.telemetry.TelemetryManager")
+    @patch("app.infrastructure.telemetry.TelemetryManager")
     def test_initialize_telemetry_with_config(self, mock_manager_class):
         """Test initialize_telemetry with custom config."""
         config = TelemetryConfig()
@@ -212,7 +212,7 @@ class TestTelemetryManager:
         monkeypatch.setenv("TESTING", "true")
 
         # Clear any existing manager first
-        import app.infra.telemetry as telemetry_module
+        import app.infrastructure.telemetry as telemetry_module
 
         telemetry_module._telemetry_manager = None
 
@@ -237,7 +237,7 @@ class TestTelemetryManager:
     async def test_shutdown_telemetry_no_manager(self):
         """Test shutdown_telemetry when no manager exists."""
         # Ensure no manager
-        import app.infra.telemetry as telemetry_module
+        import app.infrastructure.telemetry as telemetry_module
 
         telemetry_module._telemetry_manager = None
 

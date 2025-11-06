@@ -6,12 +6,8 @@ Tests volume discount and final discount calculations.
 
 from decimal import Decimal
 
-from app.core.domain.cost.models import CostBreakdown
-from app.core.domain.pricing.discount.calculations import (
-    calculate_final_discount,
-    calculate_volume_discount,
-)
-from app.core.domain.pricing.models import PricingConfiguration
+from app.domain.core.pricing import calculate_final_discount, calculate_volume_discount
+from app.domain.model import CostBreakdown, PricingConfiguration, PricingRequest
 
 
 class TestVolumeDiscount:
@@ -53,9 +49,7 @@ class TestFinalDiscount:
 
     def test_calculate_final_discount_standard_tier(self):
         """Test final discount for standard tier."""
-        from app.core.domain.pricing.models import PricingRequest as PR
-
-        request = PR(
+        request = PricingRequest(
             cost_breakdown=CostBreakdown.create(
                 material_cost=Decimal("50.00"),
                 labor_cost=Decimal("30.00"),
@@ -79,9 +73,7 @@ class TestFinalDiscount:
 
     def test_calculate_final_discount_premium_tier(self):
         """Test final discount for premium tier."""
-        from app.core.domain.pricing.models import PricingRequest as PR
-
-        request = PR(
+        request = PricingRequest(
             cost_breakdown=CostBreakdown.create(
                 material_cost=Decimal("50.00"),
                 labor_cost=Decimal("30.00"),
@@ -106,9 +98,7 @@ class TestFinalDiscount:
 
     def test_calculate_final_discount_high_quantity(self):
         """Test final discount with high quantity."""
-        from app.core.domain.pricing.models import PricingRequest as PR
-
-        request = PR(
+        request = PricingRequest(
             cost_breakdown=CostBreakdown.create(
                 material_cost=Decimal("50.00"),
                 labor_cost=Decimal("30.00"),

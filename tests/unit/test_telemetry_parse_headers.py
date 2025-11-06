@@ -4,7 +4,7 @@ Unit tests for telemetry header parsing.
 Tests _parse_headers method.
 """
 
-from app.infra.telemetry import TelemetryConfig, TelemetryManager
+from app.infrastructure.telemetry import TelemetryConfig, TelemetryManager
 
 
 class TestParseHeaders:

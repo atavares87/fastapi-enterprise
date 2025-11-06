@@ -2,13 +2,13 @@
 
 ## Project Overview
 
-Enterprise-grade FastAPI application implementing **Hexagonal Architecture** (Ports & Adapters) with **Functional Core, Imperative Shell (FCIS)** pattern. Manufacturing pricing calculations and cost management for custom parts.
+Enterprise-grade FastAPI application implementing **Layered Architecture** (Spring Boot style) with **Functional Core** for business logic. Manufacturing pricing calculations and cost management for custom parts.
 
 ## 🚨 CRITICAL: Standard Practices First
 
 **ALWAYS follow standard, documented patterns.** If you need to deviate from:
 - Framework conventions (FastAPI, SQLAlchemy, Pydantic)
-- Architectural patterns (hexagonal architecture, FCIS)
+- Architectural patterns (Layered Architecture, Spring Boot patterns)
 - Python standards (PEP 8, type hints)
 - Industry best practices (REST API, security)
 
@@ -16,135 +16,189 @@ Enterprise-grade FastAPI application implementing **Hexagonal Architecture** (Po
 
 ## Quick Reference
 
-### Project Structure (Hexagonal Architecture)
+### Project Structure (Layered Architecture)
 
 ```
 app/
-├── adapter/                    # Adapters (Imperative Shell)
-│   ├── inbound/               # Primary adapters (driving)
-│   │   └── web/               # HTTP/REST API layer
-│   │       ├── pricing.py     # FastAPI routes/controllers
-│   │       ├── schemas.py     # Request/response DTOs
-│   │       ├── dependencies.py # Dependency injection
-│   │       └── metrics_middleware.py # HTTP middleware
-│   └── outbound/              # Secondary adapters (driven)
-│       ├── persistence/       # Database adapters
-│       │   ├── cost_data_adapter.py
-│       │   └── pricing_config_adapter.py
-│       └── telemetry/         # Metrics/observability adapters
-│           ├── metrics_adapter.py
-│           └── golden4_metrics_adapter.py
-├── core/                      # Application Core
-│   ├── domain/               # Domain Layer (Functional Core)
-│   │   ├── pricing/          # Pricing domain with subdomains
-│   │   │   ├── models.py     # Base pricing models
-│   │   │   ├── calculations.py # Base calculations
-│   │   │   ├── tier/         # Tier subdomain
-│   │   │   │   ├── models.py     # PricingTier, TierPricing
-│   │   │   │   └── calculations.py # Tier pricing logic
-│   │   │   ├── discount/     # Discount subdomain
-│   │   │   │   └── calculations.py # Volume & final discounts
-│   │   │   └── margin/       # Margin subdomain
-│   │   │       └── calculations.py # Margin calculations
-│   │   └── cost/
-│   │       ├── models.py
-│   │       └── calculations.py
-│   ├── application/          # Application Layer (Orchestration)
-│   │   └── pricing/
-│   │       └── use_cases.py  # Coordinates functional core + adapters
-│   ├── port/                 # Ports (Interfaces)
-│   │   ├── inbound/          # Use case interfaces
-│   │   └── outbound/         # Repository/service interfaces
-│   │       ├── cost_ports.py
-│   │       ├── pricing_ports.py
-│   │       └── metrics_ports.py
-│   ├── config.py             # Application configuration
-│   ├── database.py           # Database connection management
-│   └── telemetry.py          # OpenTelemetry setup
-└── main.py                   # FastAPI application entry point
+├── controller/                  # REST endpoints (@RestController in Spring)
+│   ├── pricing_controller.py   # Pricing API endpoints
+│   └── health_controller.py    # Health check endpoints
+│
+├── service/                     # Business logic (@Service in Spring)
+│   └── pricing_service.py      # Pricing business orchestration
+│
+├── repository/                  # Data access (@Repository in Spring)
+│   ├── cost_repository.py
+│   ├── config_repository.py
+│   ├── pricing_repository.py
+│   └── metrics_repository.py
+│
+├── domain/                      # Core domain
+│   ├── model/                   # Domain models (entities, value objects)
+│   │   ├── enums.py
+│   │   ├── cost_models.py
+│   │   └── pricing_models.py
+│   └── core/                    # Functional Core (pure functions)
+│       ├── cost/
+│       │   └── calculations.py
+│       └── pricing/
+│           ├── calculations.py
+│           ├── tier_calculations.py
+│           ├── discount_calculations.py
+│           └── margin_calculations.py
+│
+├── dto/                         # Data Transfer Objects
+│   ├── request/
+│   └── response/
+│
+├── exception/                   # Exception handling
+│   ├── domain_exceptions.py
+│   └── handler.py
+│
+├── config/                      # Configuration
+│   ├── settings.py
+│   └── dependencies.py          # Dependency injection
+│
+├── infrastructure/              # Cross-cutting infrastructure
+│   ├── database.py
+│   ├── logging.py
+│   └── telemetry.py
+│
+└── main.py                      # Application entry point
 ```
 
-### Dependency Flow (Dependencies Point Inward)
+### Dependency Flow (Top to Bottom)
 
 ```
-Inbound Adapters (Web) → Application (Use Cases) → Domain (Pure Logic)
-                      ↗                        ↗
-Outbound Adapters (DB/Metrics) ────────────────┘
+Controller → Service → Repository → Domain
 ```
 
 **Rules:**
-- Domain layer: NO external dependencies (pure functions)
-- Application layer: Depends only on domain + port interfaces
-- Adapters: Implement ports but don't depend on other layers
-- Web layer: Depends on application + domain
+- Controllers depend on Services and DTOs
+- Services depend on Repositories and Domain
+- Repositories depend on Domain Models
+- Domain has NO external dependencies
 
-## Architecture Patterns
+## Architecture Layers
 
-### 1. Functional Core, Imperative Shell (FCIS)
+### 1. Controller Layer (`controller/`)
 
-**Functional Core (Domain)**: Pure functions, no side effects
+**Responsibility**: Handle HTTP requests and responses
+
+**Analogous to**: Spring `@RestController`
+
+**Rules**:
+- Route HTTP requests to service methods
+- Validate requests (Pydantic does this automatically)
+- Convert DTOs to/from HTTP
+- Handle HTTP-specific concerns (status codes, headers)
+- **NO business logic**
+
+**Example**:
 ```python
-# app/core/domain/pricing/calculations.py
-def calculate_material_cost(
-    volume_cm3: float,
-    material_density: float,
-    material_cost_per_kg: Decimal,
-    quantity: int
+@router.post("/calculate", response_model=PricingResponseDTO)
+async def calculate_pricing(
+    request: PricingRequestDTO,
+    pricing_service: PricingService = Depends(get_pricing_service)
+) -> PricingResponseDTO:
+    """Delegate to service layer for business logic."""
+    return await pricing_service.calculate_pricing(request)
+```
+
+### 2. Service Layer (`service/`)
+
+**Responsibility**: Business logic orchestration
+
+**Analogous to**: Spring `@Service`
+
+**Rules**:
+- Orchestrate business workflows
+- Coordinate between repositories
+- Call domain core functions for calculations
+- Handle business rules and validation
+- **NO HTTP concerns**
+- **NO database implementation details**
+
+**Example**:
+```python
+class PricingService:
+    def __init__(
+        self,
+        cost_repository: CostRepository,
+        config_repository: ConfigRepository,
+        pricing_repository: PricingRepository,
+        metrics_repository: MetricsRepository,
+    ):
+        self.cost_repository = cost_repository
+        # ... other repositories
+
+    async def calculate_pricing(self, request: PricingRequestDTO):
+        # 1. Fetch data from repositories
+        material_costs = await self.cost_repository.get_material_costs()
+
+        # 2. Call domain core (pure functions)
+        tier_pricing = calculate_tier_pricing(...)
+
+        # 3. Persist results
+        await self.pricing_repository.save(tier_pricing)
+
+        return response_dto
+```
+
+### 3. Repository Layer (`repository/`)
+
+**Responsibility**: Data access and persistence
+
+**Analogous to**: Spring `@Repository`
+
+**Rules**:
+- Abstract database access
+- Execute database queries
+- Map database results to domain models
+- Handle database transactions
+- Cache management
+- **NO business logic**
+
+**Example**:
+```python
+class CostRepository:
+    async def get_material_costs(self) -> dict[Material, MaterialCost]:
+        # Database access here
+        return await self._fetch_from_database()
+```
+
+### 4. Domain Layer (`domain/`)
+
+**Responsibility**: Core business domain
+
+**Two sub-layers**:
+
+#### Domain Models (`domain/model/`)
+- Entity classes (dataclasses)
+- Value objects
+- Enums
+- **NO I/O operations**
+
+#### Functional Core (`domain/core/`)
+- **Pure functions** (no side effects)
+- Core business calculations
+- Business rules
+- **NO I/O, NO database, NO HTTP, NO logging**
+- **NO mutable state**
+- **Completely testable without mocks**
+
+**Example**:
+```python
+def calculate_complexity_surcharge(
+    cost_plus_margin: Decimal,
+    complexity_score: float,
+    config: PricingConfiguration,
 ) -> Decimal:
-    """Pure function - no I/O, no side effects"""
-    volume_m3 = volume_cm3 / 1_000_000
-    weight_kg = volume_m3 * material_density
-    return material_cost_per_kg * Decimal(str(weight_kg)) * quantity
+    """Pure function - same input always produces same output."""
+    if complexity_score >= config.complexity_surcharge_threshold:
+        return cost_plus_margin * Decimal(str(config.complexity_surcharge_rate))
+    return Decimal("0")
 ```
-
-**Imperative Shell (Adapters)**: All I/O and side effects
-```python
-# app/adapter/outbound/persistence/cost_data_adapter.py
-class PostgresCostDataAdapter(CostDataPort):
-    """Handles all database I/O"""
-    async def get_material_costs(self) -> Dict[str, Decimal]:
-        # Database queries happen here
-        pass
-```
-
-**Application Layer (Orchestration)**: Coordinates both
-```python
-# app/core/application/pricing/use_cases.py
-class CalculatePricingUseCase:
-    async def execute(self, request: PricingRequest) -> PricingResult:
-        # 1. Get data (imperative shell)
-        material_costs = await self._cost_port.get_material_costs()
-
-        # 2. Pure calculation (functional core)
-        result = calculate_material_cost(...)
-
-        # 3. Persist (imperative shell)
-        await self._metrics_port.record_calculation(result)
-        return result
-```
-
-### 2. Key Principles
-
-**Functional Core (Domain Layer):**
-- ✅ Pure functions that return same output for same input
-- ✅ All data passed as parameters
-- ✅ Immutable data structures
-- ❌ NO I/O operations (database, HTTP, file system)
-- ❌ NO global state or side effects
-- ❌ NO logging or datetime.now() calls
-
-**Imperative Shell (Adapters):**
-- ✅ All I/O operations (database, HTTP, cache)
-- ✅ Transaction management
-- ✅ Convert between domain and external formats
-- ❌ NO business logic
-- ❌ NO business decisions
-
-**Application Layer (Use Cases):**
-- ✅ Orchestrate functional core + imperative shell
-- ✅ Gather data → call pure functions → persist results
-- ❌ NO business logic (delegate to domain)
-- ❌ NO direct I/O (delegate to adapters)
 
 ## Development Workflow
 
@@ -163,13 +217,11 @@ make db-upgrade     # Run migrations
 
 ### Adding a New Feature
 
-1. **Domain Layer**: Write pure functions (no mocks needed for tests!)
-2. **Port Interfaces**: Define interfaces in `core/port/outbound/`
-3. **Adapters**: Implement interfaces in `adapter/outbound/`
-4. **Use Cases**: Orchestrate in `core/application/`
-5. **Web Layer**: Add routes in `adapter/inbound/web/`
-
-See [docs/development/adding-features.md](docs/development/adding-features.md) for detailed guide.
+1. **Domain Layer**: Write domain models and pure functions (no mocks needed for tests!)
+2. **Repository Layer**: Create repository for data access
+3. **Service Layer**: Create service with business orchestration
+4. **Controller Layer**: Add routes and HTTP schemas (DTOs)
+5. **Dependency Injection**: Wire dependencies in `config/dependencies.py`
 
 ## Code Standards
 
@@ -178,30 +230,37 @@ See [docs/development/adding-features.md](docs/development/adding-features.md) f
 - Black formatting (line length: 88)
 - Use `uv` for package management
 - Pydantic for validation
-- Async/await where needed (not in pure domain logic)
+- Async/await where needed (not in pure domain core)
 
 ### Testing Strategy
-- **Domain tests**: Test pure functions directly (no mocks!)
-- **Integration tests**: Test adapters with real dependencies
-- **Application tests**: Mock adapters, use real domain logic
-- **API tests**: Mock use cases, test HTTP concerns
 
+**Domain Core Tests**: Test pure functions directly (no mocks!)
 ```python
-# ✅ Domain test - no mocks needed
-def test_calculate_material_cost():
-    result = calculate_material_cost(1000.0, 2.7, Decimal("10.50"), 100)
-    assert result == Decimal("2835.00")
+def test_calculate_complexity_surcharge():
+    result = calculate_complexity_surcharge(
+        Decimal("100"), 4.0, PricingConfiguration(...)
+    )
+    assert result == Decimal("20.00")
+```
 
-# ✅ Use case test - mock adapters, real domain logic
-async def test_pricing_use_case():
-    mock_cost_port = Mock(spec=CostDataPort)
-    mock_cost_port.get_material_costs.return_value = {"aluminum": Decimal("10.50")}
+**Service Tests**: Mock repositories, use real domain logic
+```python
+async def test_pricing_service():
+    mock_repo = Mock(spec=CostRepository)
+    mock_repo.get_material_costs.return_value = {...}
 
-    use_case = CalculatePricingUseCase(mock_cost_port)
-    result = await use_case.execute(request)
+    service = PricingService(mock_repo, ...)
+    result = await service.calculate_pricing(request_dto)
 
-    assert result.total_cost > 0
-    mock_cost_port.get_material_costs.assert_called_once()
+    assert result.pricing_tiers.standard.final_price > 0
+    mock_repo.get_material_costs.assert_called_once()
+```
+
+**Controller Tests**: Mock services, test HTTP concerns
+```python
+async def test_pricing_endpoint(client):
+    response = client.post("/api/v1/pricing/calculate", json=request_data)
+    assert response.status_code == 200
 ```
 
 ### Before Committing
@@ -222,69 +281,114 @@ make test           # All tests
 - **Background**: Celery
 - **Migrations**: Alembic
 
-## Documentation
+## SOLID Principles Adherence
 
-For detailed information:
-- [Architecture Overview](docs/architecture/README.md) - Hexagonal architecture deep dive
-- [Folder Structure](docs/architecture/folder-structure.md) - Detailed file organization
-- [Development Guide](docs/development/README.md) - Feature development workflow
-- [Operations Guide](docs/operations/README.md) - Deployment & monitoring
-- [Golden 4 Metrics](docs/operations/golden4-metrics.md) - Observability metrics
+### Single Responsibility Principle (SRP)
+- Each layer has one reason to change
+- Controllers: HTTP changes
+- Services: Business logic changes
+- Repositories: Data access changes
+- Domain: Business rules changes
+
+### Open/Closed Principle (OCP)
+- Services are open for extension via new methods
+- Domain core functions are pure and composable
+
+### Liskov Substitution Principle (LSP)
+- Repository implementations are interchangeable
+- Service implementations can be swapped
+
+### Interface Segregation Principle (ISP)
+- Repository interfaces are focused and specific
+- Services only depend on what they need
+
+### Dependency Inversion Principle (DIP)
+- Services depend on repository abstractions
+- Services depend on domain models, not infrastructure
 
 ## Common Anti-Patterns to Avoid
 
 ### General
-- ❌ Business logic in route handlers
-- ❌ Database models imported in domain layer
+- ❌ Business logic in controllers
+- ❌ HTTP concerns in services
+- ❌ Database queries in services (use repositories)
 - ❌ Global variables for state
 - ❌ Missing type annotations
-- ❌ Exposing internal exceptions to API
 
-### FCIS-Specific
-- ❌ Side effects in domain functions
-- ❌ Database calls from domain layer
-- ❌ Using datetime.now() in pure functions
+### Layered Architecture-Specific
+- ❌ Controllers calling repositories directly (skip service layer)
+- ❌ Services knowing about HTTP (status codes, headers)
+- ❌ Repositories containing business logic
+- ❌ Domain depending on any layer above it
+
+### Functional Core-Specific
+- ❌ Side effects in domain core functions
+- ❌ Database calls from domain core
+- ❌ Using `datetime.now()` in pure functions
 - ❌ Logging in functional core
 - ❌ Mocking pure functions in tests
 
-### Testing
-- ❌ Mocking pure functions (test them directly!)
-- ❌ Testing pure domain logic with integration tests
-- ❌ Testing adapters and domain together in unit tests
+## Dependency Injection
+
+Using `functools.lru_cache` for singleton pattern (analogous to Spring `@Bean`):
+
+```python
+# config/dependencies.py
+from functools import lru_cache
+
+@lru_cache()
+def get_cost_repository() -> CostRepository:
+    return CostRepository()
+
+@lru_cache()
+def get_pricing_service() -> PricingService:
+    return PricingService(
+        cost_repository=get_cost_repository(),
+        config_repository=get_config_repository(),
+        pricing_repository=get_pricing_repository(),
+        metrics_repository=get_metrics_repository(),
+    )
+```
 
 ## Quick Examples
 
-### FastAPI Route (Inbound Adapter)
+### Controller (HTTP Layer)
 ```python
-@router.post("/pricing", response_model=PricingResponse)
+# controller/pricing_controller.py
+@router.post("/calculate", response_model=PricingResponseDTO)
 async def calculate_pricing(
-    request: PricingRequest,
-    use_case: CalculatePricingUseCase = Depends(get_pricing_use_case),
-) -> PricingResponse:
-    try:
-        result = await use_case.execute(request)
-        return PricingResponse.from_domain(result)
-    except DomainError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    request: PricingRequestDTO,
+    pricing_service: PricingService = Depends(get_pricing_service)
+) -> PricingResponseDTO:
+    return await pricing_service.calculate_pricing(request)
 ```
 
-### Port Interface
+### Service (Business Logic)
 ```python
-class CostDataPort(Protocol):
-    """Port for cost data access"""
-    async def get_material_costs(self) -> Dict[str, Decimal]: ...
+# service/pricing_service.py
+class PricingService:
+    async def calculate_pricing(self, request: PricingRequestDTO):
+        # Orchestrate: repositories + domain core
+        costs = await self.cost_repository.get_material_costs()
+        tier_pricing = calculate_tier_pricing(costs, ...)
+        await self.pricing_repository.save(tier_pricing)
+        return response_dto
 ```
 
-### Pure Domain Function
+### Repository (Data Access)
 ```python
-def calculate_pricing(
-    volume_cm3: float,
-    material_cost_per_kg: Decimal,
-    labor_rate_per_hour: Decimal,
-    # All data passed as parameters
-) -> PricingResult:
-    # Pure calculation - no side effects
-    return PricingResult(...)
+# repository/cost_repository.py
+class CostRepository:
+    async def get_material_costs(self):
+        return await self._fetch_from_database()
+```
+
+### Domain Core (Pure Functions)
+```python
+# domain/core/pricing/calculations.py
+def calculate_margin(base_cost: Decimal, config: PricingConfiguration) -> Decimal:
+    """Pure function - no side effects."""
+    return base_cost * Decimal(str(config.margin_percentage))
 ```
 
 ## Environment Setup
@@ -302,8 +406,14 @@ make full-setup     # Starts services, installs deps, runs migrations
 make start-dev
 ```
 
-See [README.md](README.md) for complete quick start guide.
+## Documentation
+
+For detailed information:
+- [Layered Architecture](docs/architecture/layered-architecture.md) - Complete architecture guide
+- [Folder Structure](docs/architecture/folder-structure.md) - Detailed file organization
+- [Development Guide](docs/development/README.md) - Feature development workflow
+- [Operations Guide](docs/operations/README.md) - Deployment & monitoring
 
 ---
 
-**Remember**: Keep domain logic pure, push all side effects to adapters, orchestrate in use cases. This makes the codebase maintainable, testable, and reliable.
+**Remember**: Keep domain core pure, services orchestrate, repositories handle data, controllers handle HTTP. Dependencies flow downward toward the domain. This makes the codebase maintainable, testable, and reliable.

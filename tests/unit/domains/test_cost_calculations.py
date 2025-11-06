@@ -12,8 +12,8 @@ from decimal import Decimal
 
 import pytest
 
-from app.core.domain.cost import calculations
-from app.core.domain.cost.models import (
+from app.domain.core.cost import calculate_manufacturing_cost, estimate_cost_range
+from app.domain.model import (
     ManufacturingProcess,
     Material,
     MaterialCost,
@@ -56,7 +56,7 @@ def test_calculate_manufacturing_cost_with_aluminum_cnc():
     }
 
     # Act: Call pure function directly
-    result = calculations.calculate_manufacturing_cost(
+    result = calculate_manufacturing_cost(
         spec=spec, material_costs=material_costs, process_costs=process_costs
     )
 
@@ -94,9 +94,7 @@ def test_calculate_manufacturing_cost_with_different_complexity():
         material=Material.ALUMINUM,
         process=ManufacturingProcess.CNC,
     )
-    result_low = calculations.calculate_manufacturing_cost(
-        spec_low, material_costs, process_costs
-    )
+    result_low = calculate_manufacturing_cost(spec_low, material_costs, process_costs)
 
     # Calculate cost for high complexity
     spec_high = PartSpecification(
@@ -105,9 +103,7 @@ def test_calculate_manufacturing_cost_with_different_complexity():
         material=Material.ALUMINUM,
         process=ManufacturingProcess.CNC,
     )
-    result_high = calculations.calculate_manufacturing_cost(
-        spec_high, material_costs, process_costs
-    )
+    result_high = calculate_manufacturing_cost(spec_high, material_costs, process_costs)
 
     # Assert: High complexity should cost more
     assert result_high.total_cost > result_low.total_cost
@@ -140,9 +136,7 @@ def test_estimate_cost_range():
         )
     }
 
-    min_cost, max_cost = calculations.estimate_cost_range(
-        spec, material_costs, process_costs
-    )
+    min_cost, max_cost = estimate_cost_range(spec, material_costs, process_costs)
 
     assert min_cost < max_cost
     assert min_cost > 0
@@ -169,4 +163,4 @@ def test_calculate_manufacturing_cost_raises_error_for_unsupported_material():
     }
 
     with pytest.raises(ValueError, match="Unsupported material"):
-        calculations.calculate_manufacturing_cost(spec, material_costs, process_costs)
+        calculate_manufacturing_cost(spec, material_costs, process_costs)

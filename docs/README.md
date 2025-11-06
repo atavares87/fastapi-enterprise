@@ -2,17 +2,17 @@
 
 ## Quick Links
 
-- **[Architecture](architecture/README.md)** - System design, hexagonal architecture, folder structure
+- **[Architecture](architecture/README.md)** - System design, layered architecture, folder structure
 - **[Development](development/README.md)** - Getting started, adding features, testing
 - **[Operations](operations/README.md)** - Deployment, monitoring, troubleshooting
 
 ## Architecture
 
-Learn about the hexagonal architecture pattern and how this application is structured:
+Learn about the layered architecture pattern and how this application is structured:
 
-- [Hexagonal Architecture](architecture/hexagonal-architecture.md) - Ports & adapters pattern
+- [Layered Architecture](architecture/layered-architecture.md) - Spring Boot-style layers
 - [Folder Structure](architecture/folder-structure.md) - Directory layout and conventions
-- [Design Principles](architecture/design-principles.md) - Functional core, imperative shell
+- [Design Principles](architecture/design-principles.md) - Functional core, SOLID principles
 - [Database Architecture](architecture/database-architecture.md) - Multi-database strategy
 
 ## Development
@@ -21,7 +21,7 @@ Guides for building features and working with the codebase:
 
 - [Getting Started](development/getting-started.md) - Setup and first steps
 - [Adding Features](development/adding-features.md) - Feature development workflow
-- [Domain Development](development/domain-development.md) - Creating business domains
+- [Domain Development](development/domain-development.md) - Creating business logic
 
 ## Operations
 
@@ -42,7 +42,8 @@ Feature-specific documentation:
 ## External Resources
 
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/)
+- [Spring Boot Best Practices](https://spring.io/guides) - Layered architecture inspiration
 - [Domain-Driven Design](https://martinfowler.com/bliki/DomainDrivenDesign.html)
+- [Functional Core, Imperative Shell](https://www.destroyallsoftware.com/screencasts/catalog/functional-core-imperative-shell)
 - [Google SRE Book](https://sre.google/sre-book/table-of-contents/)
 - [OpenTelemetry](https://opentelemetry.io/docs/)

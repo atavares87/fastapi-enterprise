@@ -4,7 +4,7 @@ Unit tests for telemetry tracing paths.
 Tests conditional tracing setup paths.
 """
 
-from app.infra.telemetry import TelemetryConfig, TelemetryManager
+from app.infrastructure.telemetry import TelemetryConfig, TelemetryManager
 
 
 class TestTelemetryTracingPaths:

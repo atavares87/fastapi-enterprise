@@ -4,58 +4,38 @@ Unit tests for exception classes.
 Tests custom exception classes.
 """
 
-from app.core.exceptions import DomainException, NotFoundError, ValidationError
+from app.exception.domain_exceptions import (
+    DomainException,
+    NotFoundException,
+    ValidationException,
+)
 
 
 class TestDomainException:
     """Test cases for DomainException."""
 
-    def test_domain_exception_default(self):
-        """Test DomainException with default values."""
+    def test_domain_exception_basic(self):
+        """Test DomainException with message."""
         exc = DomainException("Test message")
-
         assert str(exc) == "Test message"
-        assert exc.message == "Test message"
-        assert exc.status_code == 400
-        assert exc.details == {}
-
-    def test_domain_exception_with_details(self):
-        """Test DomainException with custom details."""
-        exc = DomainException("Test message", status_code=404, details={"key": "value"})
-
-        assert exc.message == "Test message"
-        assert exc.status_code == 404
-        assert exc.details == {"key": "value"}
+        assert isinstance(exc, Exception)
 
 
-class TestValidationError:
-    """Test cases for ValidationError."""
+class TestValidationException:
+    """Test cases for ValidationException."""
 
-    def test_validation_error_without_field(self):
-        """Test ValidationError without field."""
-        exc = ValidationError("Invalid input")
-
-        assert exc.message == "Invalid input"
-        assert exc.status_code == 422
-        assert exc.details == {}
-
-    def test_validation_error_with_field(self):
-        """Test ValidationError with field."""
-        exc = ValidationError("Invalid input", field="email")
-
-        assert exc.message == "Invalid input"
-        assert exc.status_code == 422
-        assert exc.details == {"field": "email"}
+    def test_validation_exception(self):
+        """Test ValidationException."""
+        exc = ValidationException("Invalid input")
+        assert str(exc) == "Invalid input"
+        assert isinstance(exc, DomainException)
 
 
-class TestNotFoundError:
-    """Test cases for NotFoundError."""
+class TestNotFoundException:
+    """Test cases for NotFoundException."""
 
-    def test_not_found_error(self):
-        """Test NotFoundError."""
-        exc = NotFoundError("User", "123")
-
-        assert "User" in exc.message
-        assert "123" in exc.message
-        assert exc.status_code == 404
-        assert exc.details == {"resource": "User", "identifier": "123"}
+    def test_not_found_exception(self):
+        """Test NotFoundException."""
+        exc = NotFoundException("Resource not found")
+        assert str(exc) == "Resource not found"
+        assert isinstance(exc, DomainException)

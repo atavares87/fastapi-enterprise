@@ -8,23 +8,22 @@ from uuid import uuid4
 
 import pytest
 
-from app.adapter.outbound.telemetry.metrics_adapter import TelemetryAdapter
-from app.core.domain.pricing.models.price_breakdown import PriceBreakdown
-from app.core.domain.pricing.tier import TierPricing
+from app.domain.model import PriceBreakdown, TierPricing
+from app.repository.metrics_repository import MetricsRepository
 
 
-class TestTelemetryAdapter:
-    """Test cases for TelemetryAdapter."""
+class TestMetricsRepository:
+    """Test cases for MetricsRepository."""
 
-    def test_adapter_initialization(self):
-        """Test TelemetryAdapter initialization."""
-        adapter = TelemetryAdapter()
+    def test_repository_initialization(self):
+        """Test MetricsRepository initialization."""
+        adapter = MetricsRepository()
         assert adapter is not None
 
     @pytest.mark.asyncio
     async def test_get_current_time(self):
         """Test get_current_time returns float."""
-        adapter = TelemetryAdapter()
+        adapter = MetricsRepository()
         time_value = await adapter.get_current_time()
         assert isinstance(time_value, float)
         assert time_value > 0
@@ -32,7 +31,7 @@ class TestTelemetryAdapter:
     @pytest.mark.asyncio
     async def test_trace_pricing_calculation(self):
         """Test trace_pricing_calculation context manager."""
-        adapter = TelemetryAdapter()
+        adapter = MetricsRepository()
         calculation_id = uuid4()
 
         async with adapter.trace_pricing_calculation(
@@ -48,7 +47,7 @@ class TestTelemetryAdapter:
     @pytest.mark.asyncio
     async def test_record_pricing_metrics(self):
         """Test record_pricing_metrics."""
-        adapter = TelemetryAdapter()
+        adapter = MetricsRepository()
         calculation_id = uuid4()
 
         # Create mock tier pricing
@@ -87,7 +86,7 @@ class TestTelemetryAdapter:
     @pytest.mark.asyncio
     async def test_record_error(self):
         """Test record_error."""
-        adapter = TelemetryAdapter()
+        adapter = MetricsRepository()
         calculation_id = uuid4()
 
         await adapter.record_error(

@@ -30,7 +30,7 @@ class TestPricingErrorHandling:
             "customer_tier": "standard",
         }
 
-        response = test_client.post("/api/v1/pricing", json=request_data)
+        response = test_client.post("/api/v1/pricing/calculate", json=request_data)
         assert response.status_code == 400
         data = response.json()
         assert "error" in data or "detail" in data
@@ -40,7 +40,7 @@ class TestPricingErrorHandling:
         # Test that unexpected exceptions are handled gracefully
         # by checking that invalid requests don't crash the server
         invalid_request = {"completely": "invalid"}
-        response = test_client.post("/api/v1/pricing", json=invalid_request)
+        response = test_client.post("/api/v1/pricing/calculate", json=invalid_request)
 
         # Should return validation error, not crash
         assert response.status_code in [400, 422]

@@ -9,18 +9,17 @@ from uuid import uuid4
 
 import pytest
 
-from app.adapter.outbound.telemetry.metrics_adapter import TelemetryAdapter
-from app.core.domain.pricing.models.price_breakdown import PriceBreakdown
-from app.core.domain.pricing.tier import TierPricing
+from app.domain.model import PriceBreakdown, TierPricing
+from app.repository.metrics_repository import MetricsRepository
 
 
-class TestTelemetryAdapterErrorPaths:
-    """Test error paths in TelemetryAdapter."""
+class TestMetricsRepositoryErrorPaths:
+    """Test error paths in MetricsRepository."""
 
     @pytest.mark.asyncio
     async def test_record_error_with_none_values(self):
         """Test record_error with None material/process."""
-        adapter = TelemetryAdapter()
+        adapter = MetricsRepository()
 
         await adapter.record_error(
             calculation_id=uuid4(),
@@ -37,7 +36,7 @@ class TestTelemetryAdapterErrorPaths:
     @pytest.mark.asyncio
     async def test_record_error_without_tracer(self):
         """Test record_error when tracer is None."""
-        adapter = TelemetryAdapter()
+        adapter = MetricsRepository()
         # Ensure tracer is None
         adapter.tracer = None
 
@@ -53,14 +52,12 @@ class TestTelemetryAdapterErrorPaths:
     @pytest.mark.asyncio
     async def test_record_error_with_tracer_no_span(self):
         """Test record_error with tracer but no current span."""
-        adapter = TelemetryAdapter()
+        adapter = MetricsRepository()
         # Mock tracer without current span
         mock_tracer = Mock()
         adapter.tracer = mock_tracer
 
-        with patch(
-            "app.adapter.outbound.telemetry.metrics_adapter.trace"
-        ) as mock_trace:
+        with patch("app.repository.metrics_repository.trace") as mock_trace:
             mock_trace.get_current_span.return_value = None
 
             await adapter.record_error(
@@ -75,7 +72,7 @@ class TestTelemetryAdapterErrorPaths:
     @pytest.mark.asyncio
     async def test_record_pricing_metrics_all_tiers(self):
         """Test record_pricing_metrics handles all tiers."""
-        adapter = TelemetryAdapter()
+        adapter = MetricsRepository()
         calculation_id = uuid4()
 
         breakdown = PriceBreakdown(

@@ -6,17 +6,14 @@ Tests tier pricing calculation functions with edge cases.
 
 from decimal import Decimal
 
-from app.core.domain.cost.models import CostBreakdown
-from app.core.domain.pricing.models import (
+from app.domain.core.pricing import calculate_tier_price, calculate_tier_pricing
+from app.domain.model import (
+    CostBreakdown,
     PricingConfiguration,
     PricingRequest,
+    PricingTier,
     ShippingCost,
 )
-from app.core.domain.pricing.tier.calculations import (
-    calculate_tier_price,
-    calculate_tier_pricing,
-)
-from app.core.domain.pricing.tier.models import PricingTier
 
 
 class TestCalculateTierPrice:

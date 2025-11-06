@@ -21,7 +21,7 @@ class TestPricingRouterEdgeCases:
             "customer_tier": "standard",
         }
 
-        response = test_client.post("/api/v1/pricing", json=request_data)
+        response = test_client.post("/api/v1/pricing/calculate", json=request_data)
         assert response.status_code == 200
 
         data = response.json()
@@ -45,7 +45,7 @@ class TestPricingRouterEdgeCases:
             "shipping_distance_zone": 3,
         }
 
-        response = test_client.post("/api/v1/pricing", json=request_data)
+        response = test_client.post("/api/v1/pricing/calculate", json=request_data)
         assert response.status_code == 200
 
         data = response.json()

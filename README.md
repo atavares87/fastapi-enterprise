@@ -66,25 +66,29 @@ make db-downgrade  # Rollback one migration
 
 ## Architecture
 
-This project uses **Hexagonal Architecture** (Ports & Adapters) with **Functional Core, Imperative Shell**:
+This project uses **Clean Architecture** (Uncle Bob's pattern) with **Functional Core, Imperative Shell**:
 
 ```
 app/
-├── adapter/
-│   ├── inbound/web/          # HTTP API (FastAPI)
-│   └── outbound/             # Databases, external APIs
-├── core/
-│   ├── domain/               # Pure business logic (no I/O)
-│   ├── application/          # Use cases (orchestration)
-│   └── port/                 # Interfaces
-└── main.py
+├── features/
+│   ├── pricing/
+│   │   ├── entities/             # Pure business logic (innermost)
+│   │   ├── use_cases/            # Application business rules
+│   │   ├── interface_adapters/   # Controllers, gateways, presenters
+│   │   └── frameworks/           # FastAPI routes (outermost)
+│   └── cost/
+│       ├── entities/
+│       └── use_cases/
+├── shared/                       # Shared kernel
+└── frameworks/                   # Cross-cutting infrastructure
 ```
 
 **Key Principles:**
 
-- **Domain** = Pure functions, no side effects, no I/O
-- **Application** = Orchestrate domain logic + adapters
-- **Adapters** = All I/O (HTTP, database, external APIs)
+- **Entities** = Pure functions, no side effects, no I/O (innermost)
+- **Use Cases** = Orchestrate entities with gateways
+- **Interface Adapters** = Convert data between layers
+- **Frameworks** = External interfaces (HTTP, database) (outermost)
 
 [Full architecture docs →](docs/architecture/README.md)
 
@@ -133,7 +137,7 @@ curl http://localhost:8000/health
 
 ## Key Features
 
-- ✅ **Hexagonal Architecture** - Clean separation of concerns
+- ✅ **Clean Architecture** - Four layers with dependency rule
 - ✅ **Functional Core** - Pure business logic, easily testable
 - ✅ **Multi-Database** - PostgreSQL, MongoDB, Redis
 - ✅ **OpenTelemetry** - Distributed tracing and metrics
@@ -145,25 +149,27 @@ curl http://localhost:8000/health
 
 ## Adding Features
 
-1. **Create domain logic** in `app/core/domain/your_feature/`
+1. **Create entities** in `app/features/your_feature/entities/`
 
-   - `models.py` - Data structures (immutable)
-   - `calculations.py` - Pure functions (no I/O)
+   - Pure functions (no I/O)
+   - Domain models (immutable)
 
-2. **Create ports** in `app/core/port/outbound/`
+2. **Create use cases** in `app/features/your_feature/use_cases/`
 
-   - Define interfaces for external dependencies
+   - Use case orchestration
+   - Input/Output DTOs
+   - Gateway interfaces
 
-3. **Create adapters** in `app/adapter/outbound/`
+3. **Create interface adapters** in `app/features/your_feature/interface_adapters/`
 
-   - Implement ports for database, external APIs
+   - Gateway implementations
+   - Controllers and presenters
 
-4. **Create use case** in `app/core/application/your_feature/`
+4. **Create frameworks** in `app/features/your_feature/frameworks/web/`
 
-   - Orchestrate domain logic with adapters
-
-5. **Create API** in `app/adapter/inbound/web/`
-   - FastAPI endpoints that call use cases
+   - FastAPI routes
+   - HTTP schemas
+   - Dependencies
 
 [Feature development guide →](docs/development/README.md)
 
@@ -212,7 +218,7 @@ make help                # Show all available commands
 
 ## Documentation
 
-- [Architecture](docs/architecture/README.md) - Hexagonal architecture, design principles
+- [Architecture](docs/architecture/README.md) - Clean Architecture, design principles
 - [Development](docs/development/README.md) - Feature development, testing, best practices
 - [Operations](docs/operations/README.md) - Deployment, monitoring, troubleshooting
 - [API Reference](http://localhost:8000/docs) - Interactive OpenAPI docs

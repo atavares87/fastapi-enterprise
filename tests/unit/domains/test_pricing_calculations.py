@@ -6,22 +6,21 @@ Testing pure functions is simple - no mocks needed!
 
 from decimal import Decimal
 
-from app.core.domain.cost.models import CostBreakdown
-from app.core.domain.pricing.calculations import (
+from app.domain.core.pricing import (
     calculate_complexity_surcharge,
+    calculate_final_discount,
+    calculate_margin,
+    calculate_tier_pricing,
+    calculate_volume_discount,
     estimate_weight_from_material_and_volume,
 )
-from app.core.domain.pricing.discount import (
-    calculate_final_discount,
-    calculate_volume_discount,
-)
-from app.core.domain.pricing.margin import calculate_margin
-from app.core.domain.pricing.models import (
+from app.domain.model import (
+    CostBreakdown,
     PricingConfiguration,
     PricingRequest,
+    PricingTier,
     ShippingCost,
 )
-from app.core.domain.pricing.tier import PricingTier, calculate_tier_pricing
 
 
 def test_calculate_margin():

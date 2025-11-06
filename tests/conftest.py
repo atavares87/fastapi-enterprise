@@ -49,7 +49,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 )
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app.infra.database import (  # noqa: E402
+from app.infrastructure.database import (  # noqa: E402
     Base,
     get_cache_client,
     get_db_session,
@@ -58,6 +58,28 @@ from app.infra.database import (  # noqa: E402
 from app.main import app  # noqa: E402
 
 # Auth module has been removed from the application
+
+
+@pytest.fixture(scope="session", autouse=True)
+def clear_prometheus_registry():
+    """Clear Prometheus registry before tests to prevent duplication errors."""
+    from prometheus_client import REGISTRY
+
+    # Clear collectors to prevent duplication
+    collectors = list(REGISTRY._collector_to_names.keys())
+    for collector in collectors:
+        try:
+            REGISTRY.unregister(collector)
+        except Exception:
+            pass
+    yield
+    # Cleanup after session
+    collectors = list(REGISTRY._collector_to_names.keys())
+    for collector in collectors:
+        try:
+            REGISTRY.unregister(collector)
+        except Exception:
+            pass
 
 
 @pytest.fixture(scope="session")
@@ -240,7 +262,7 @@ def celery_app():
     Returns:
         Celery app configured for testing
     """
-    from app.infra.celery_app import celery_app
+    from app.infrastructure.celery_app import celery_app
 
     # Configure for testing
     celery_app.conf.update(

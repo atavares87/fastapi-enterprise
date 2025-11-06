@@ -9,7 +9,9 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from app.core.application.pricing.use_cases import CalculatePricingUseCase
+# NOTE: Use case pattern replaced by Service layer in layered architecture
+# This test file is kept for historical reference but needs updating for the new architecture
+# For actual service tests, see test_pricing_service.py
 
 
 class TestCalculatePricingUseCase:
@@ -65,18 +67,6 @@ class TestCalculatePricingUseCase:
         )
         return port
 
-    def test_use_case_initialization(
-        self, mock_cost_port, mock_pricing_port, mock_telemetry_port
-    ):
-        """Test use case initialization."""
-        use_case = CalculatePricingUseCase(
-            cost_data_port=mock_cost_port,
-            pricing_config_port=mock_pricing_port,
-            pricing_persistence_port=None,
-            telemetry_port=mock_telemetry_port,
-        )
-
-        assert use_case.cost_data_port == mock_cost_port
-        assert use_case.pricing_config_port == mock_pricing_port
-        assert use_case.telemetry_port == mock_telemetry_port
-        assert use_case.pricing_persistence_port is None
+    # Test methods removed - use case pattern replaced by Service layer
+    # See test_pricing_service.py for current service tests
+    pass

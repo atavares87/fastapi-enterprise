@@ -1,28 +1,29 @@
 # Architecture Documentation
 
-This application implements **[Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/)** (Ports & Adapters) with **Functional Core, Imperative Shell** principles.
+This application implements **Layered Architecture** (Spring Boot style) with **Functional Core** for business logic.
 
 ## Core Concepts
 
-### Hexagonal Architecture
+### Layered Architecture
 
-Business logic is isolated from external concerns using:
-- **Ports** = Interfaces
-- **Adapters** = Implementations
-- **Core** = Business logic (no I/O, no frameworks)
+Traditional layered architecture with clear separation of concerns:
+- **Controller** = HTTP/REST endpoints (analogous to Spring `@RestController`)
+- **Service** = Business logic orchestration (analogous to Spring `@Service`)
+- **Repository** = Data access layer (analogous to Spring `@Repository`)
+- **Domain** = Core business domain (models + pure functions)
 
-[Learn more →](https://netflixtechblog.com/ready-for-changes-with-hexagonal-architecture-b315ec967749)
+[Learn more →](https://spring.io/guides)
 
 ### Functional Core, Imperative Shell
 
-- **Functional Core** (`core/domain/`) = Pure functions, no side effects
-- **Imperative Shell** (`adapter/`) = All I/O operations
+- **Functional Core** (`domain/core/`) = Pure functions, no side effects
+- **Imperative Shell** (Controllers, Services, Repositories) = All I/O operations
 
 [Learn more →](https://www.destroyallsoftware.com/screencasts/catalog/functional-core-imperative-shell)
 
 ## Documentation
 
-1. **[Hexagonal Architecture](hexagonal-architecture.md)** - Architecture overview, dependency flow, layer responsibilities
+1. **[Layered Architecture](layered-architecture.md)** - Complete architecture guide, SOLID principles, patterns
 
 2. **[Folder Structure](folder-structure.md)** - Directory layout, file naming, import conventions
 
@@ -34,14 +35,25 @@ Business logic is isolated from external concerns using:
 
 ```
 app/
-├── adapter/           # I/O (HTTP, database, external APIs)
-│   ├── inbound/      # HTTP API, CLI
-│   └── outbound/     # Database, external services
-├── core/
-│   ├── domain/       # Pure business logic (no I/O)
-│   ├── application/  # Use cases (orchestration)
-│   └── port/         # Interfaces
-└── main.py
+├── controller/        # HTTP endpoints (@RestController)
+│   ├── pricing_controller.py
+│   └── health_controller.py
+├── service/           # Business logic (@Service)
+│   └── pricing_service.py
+├── repository/        # Data access (@Repository)
+│   ├── cost_repository.py
+│   ├── config_repository.py
+│   ├── pricing_repository.py
+│   └── metrics_repository.py
+├── domain/            # Core domain
+│   ├── model/         # Entities, value objects
+│   └── core/          # Pure business logic (functional core)
+├── dto/               # Request/response schemas
+│   ├── request/
+│   └── response/
+├── exception/         # Exception handling
+├── config/            # Configuration & DI
+└── infrastructure/    # Cross-cutting concerns
 ```
 
-**Dependency Rule**: Dependencies point inward → domain
+**Dependency Rule**: Dependencies flow downward → `Controller → Service → Repository → Domain`

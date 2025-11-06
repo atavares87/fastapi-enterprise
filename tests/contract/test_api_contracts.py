@@ -45,7 +45,6 @@ class TestAPIContracts:
         assert data["status"] == "healthy"
         assert "service" in data
 
-    @pytest.mark.skip(reason="/health/detailed endpoint doesn't exist")
     def test_health_detailed_endpoint_contract(self, test_client: TestClient):
         """Test detailed health endpoint contract."""
         response = test_client.get("/health/detailed")
@@ -174,7 +173,6 @@ class TestAPIContracts:
         assert all(isinstance(process, str) for process in data)
         assert all(len(process) > 0 for process in data)
 
-    @pytest.mark.skip(reason="/api/v1/pricing/tiers endpoint doesn't exist")
     def test_tiers_endpoint_contract(self, test_client: TestClient):
         """Test tiers endpoint contract."""
         response = test_client.get("/api/v1/pricing/tiers")

@@ -32,7 +32,7 @@ class TestPricingAPIIntegration:
             "customer_tier": "standard",
         }
 
-        response = test_client.post("/api/v1/pricing", json=request_data)
+        response = test_client.post("/api/v1/pricing/calculate", json=request_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -95,7 +95,7 @@ class TestPricingAPIIntegration:
                 "customer_tier": "standard",
             }
 
-            response = test_client.post("/api/v1/pricing", json=request_data)
+            response = test_client.post("/api/v1/pricing/calculate", json=request_data)
 
             assert response.status_code == 200, f"Failed for material: {material}"
             data = response.json()
@@ -134,7 +134,7 @@ class TestPricingAPIIntegration:
                 "customer_tier": "standard",
             }
 
-            response = test_client.post("/api/v1/pricing", json=request_data)
+            response = test_client.post("/api/v1/pricing/calculate", json=request_data)
 
             assert response.status_code == 200, f"Failed for process: {process}"
             data = response.json()
@@ -165,7 +165,7 @@ class TestPricingAPIIntegration:
 
         for qty in quantities:
             request_data = {**base_request, "quantity": qty}
-            response = test_client.post("/api/v1/pricing", json=request_data)
+            response = test_client.post("/api/v1/pricing/calculate", json=request_data)
 
             assert response.status_code == 200
             data = response.json()
@@ -198,11 +198,13 @@ class TestPricingAPIIntegration:
 
         # Standard order
         standard_request = {**base_request, "rush_order": False}
-        standard_response = test_client.post("/api/v1/pricing", json=standard_request)
+        standard_response = test_client.post(
+            "/api/v1/pricing/calculate", json=standard_request
+        )
 
         # Rush order
         rush_request = {**base_request, "rush_order": True}
-        rush_response = test_client.post("/api/v1/pricing", json=rush_request)
+        rush_response = test_client.post("/api/v1/pricing/calculate", json=rush_request)
 
         assert standard_response.status_code == 200
         assert rush_response.status_code == 200
@@ -237,7 +239,7 @@ class TestPricingAPIIntegration:
 
         for tier in tiers:
             request_data = {**base_request, "customer_tier": tier}
-            response = test_client.post("/api/v1/pricing", json=request_data)
+            response = test_client.post("/api/v1/pricing/calculate", json=request_data)
 
             assert response.status_code == 200, f"Failed for customer tier: {tier}"
             data = response.json()
@@ -265,7 +267,7 @@ class TestPricingAPIIntegration:
             "customer_tier": "premium",
         }
 
-        response = test_client.post("/api/v1/pricing", json=request_data)
+        response = test_client.post("/api/v1/pricing/calculate", json=request_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -298,7 +300,9 @@ class TestPricingAPIIntegration:
             "customer_tier": "standard",
         }
 
-        response = await async_test_client.post("/api/v1/pricing", json=request_data)
+        response = await async_test_client.post(
+            "/api/v1/pricing/calculate", json=request_data
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -315,7 +319,9 @@ class TestPricingAPIIntegration:
             # Missing required fields
         }
 
-        response = test_client.post("/api/v1/pricing", json=incomplete_request)
+        response = test_client.post(
+            "/api/v1/pricing/calculate", json=incomplete_request
+        )
 
         assert response.status_code == 422
         data = response.json()
@@ -340,7 +346,7 @@ class TestPricingAPIIntegration:
             "customer_tier": "standard",
         }
 
-        response = test_client.post("/api/v1/pricing", json=request_data)
+        response = test_client.post("/api/v1/pricing/calculate", json=request_data)
 
         # API returns 400 for invalid enum values (caught as ValueError)
         assert response.status_code == 400
@@ -364,7 +370,7 @@ class TestPricingAPIIntegration:
             "customer_tier": "standard",
         }
 
-        response = test_client.post("/api/v1/pricing", json=request_data)
+        response = test_client.post("/api/v1/pricing/calculate", json=request_data)
 
         # API returns 400 for invalid enum values (caught as ValueError)
         assert response.status_code == 400
@@ -388,7 +394,7 @@ class TestPricingAPIIntegration:
             "customer_tier": "standard",
         }
 
-        response = test_client.post("/api/v1/pricing", json=request_data)
+        response = test_client.post("/api/v1/pricing/calculate", json=request_data)
 
         # API may return 400 (domain/ValueError) or 422 (validation)
         assert response.status_code in [400, 422]
@@ -411,7 +417,7 @@ class TestPricingAPIIntegration:
             "customer_tier": "standard",
         }
 
-        response = test_client.post("/api/v1/pricing", json=request_data)
+        response = test_client.post("/api/v1/pricing/calculate", json=request_data)
 
         # API may return 400 (domain/ValueError) or 422 (validation)
         assert response.status_code in [400, 422]
@@ -434,7 +440,7 @@ class TestPricingAPIIntegration:
             "customer_tier": "standard",
         }
 
-        response = test_client.post("/api/v1/pricing", json=request_data)
+        response = test_client.post("/api/v1/pricing/calculate", json=request_data)
 
         assert response.status_code == 200
 
@@ -460,7 +466,7 @@ class TestPricingAPIIntegration:
         }
 
         start_time = time.time()
-        response = test_client.post("/api/v1/pricing", json=request_data)
+        response = test_client.post("/api/v1/pricing/calculate", json=request_data)
         end_time = time.time()
 
         assert response.status_code == 200
@@ -487,7 +493,7 @@ class TestPricingAPIIntegration:
                 "rush_order": False,
                 "customer_tier": "standard",
             }
-            return test_client.post("/api/v1/pricing", json=request_data)
+            return test_client.post("/api/v1/pricing/calculate", json=request_data)
 
         # Make multiple concurrent requests with different parameters
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -515,7 +521,7 @@ class TestPricingMetadataEndpoints:
 
     def test_get_materials_endpoint(self, test_client: TestClient):
         """Test getting available materials."""
-        response = test_client.get("/api/v1/pricing/materials")
+        response = test_client.get("/api/v1/pricing/calculate/materials")
 
         assert response.status_code == 200
         data = response.json()
@@ -530,7 +536,7 @@ class TestPricingMetadataEndpoints:
 
     def test_get_processes_endpoint(self, test_client: TestClient):
         """Test getting available manufacturing processes."""
-        response = test_client.get("/api/v1/pricing/processes")
+        response = test_client.get("/api/v1/pricing/calculate/processes")
 
         assert response.status_code == 200
         data = response.json()
@@ -554,7 +560,7 @@ class TestPricingMetadataEndpoints:
             "customer_tier": "standard",
         }
 
-        response = test_client.post("/api/v1/pricing", json=request_data)
+        response = test_client.post("/api/v1/pricing/calculate", json=request_data)
         assert response.status_code == 200
         data = response.json()
 
@@ -568,8 +574,8 @@ class TestPricingMetadataEndpoints:
     async def test_metadata_endpoints_async(self, async_test_client: AsyncClient):
         """Test metadata endpoints using async client."""
         endpoints = [
-            "/api/v1/pricing/materials",
-            "/api/v1/pricing/processes",
+            "/api/v1/pricing/calculate/materials",
+            "/api/v1/pricing/calculate/processes",
         ]
 
         for endpoint in endpoints:
@@ -584,8 +590,8 @@ class TestPricingMetadataEndpoints:
         import time
 
         endpoints = [
-            "/api/v1/pricing/materials",
-            "/api/v1/pricing/processes",
+            "/api/v1/pricing/calculate/materials",
+            "/api/v1/pricing/calculate/processes",
         ]
 
         for endpoint in endpoints:
